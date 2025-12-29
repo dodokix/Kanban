@@ -1,0 +1,8 @@
+#define PORT 5678
+#define MAX_CLIENTS 4
+#define MAXIMUM_SIZE 1024
+#define BUFFER_SIZE 100
+#define INITIAL_CARDS 10
+#define MAX_CARDS 20
+#define INITIAL_CARDS 10
+
