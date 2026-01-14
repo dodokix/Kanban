@@ -75,7 +75,7 @@ int server_setup(){
 
     if(configure_port() != 0){
         printf("socket initialization failed\n");
-        return -1;
+        exit(-1);
     }
 
     FD_ZERO(&masterfds);
@@ -139,8 +139,11 @@ void new_connection(){
     add_client(client_socket, ntohs(client_addr.sin_port));
 }
 
-void cmd_stdin(){
+//
+void read_stdin(char* dest_buffer, int max_length){
+
     int space_left = CMD_BUFF_SIZE - 1 - cmd_interface.n_byte;
+
     if(space_left == 0){
         printf("buffer stdin pieno\n");
         return;
@@ -153,24 +156,52 @@ void cmd_stdin(){
     }
 
     cmd_interface.n_byte += n;
-
-    char* buffer = cmd_interface.buff;
-    int n_bytes = cmd_interface.n_byte;
-
-    buffer[strcspn(buffer, '\n')] = "\0";
-    if(strlen(buffer) == 0)
-        return;
-
-    handle_command(cmd_interface.socket, buffer);
 }
 
-void cmd_client(int fd){
-    
+client* find_client_by_socket(int fd){
+    for(int i = 0; i < MAX_CLIENTS; ++i){
+        if(clients_arr[i].socket == fd){
+            return &clients_arr[i];
+        }
+    }
+    printf("client non torvato nella funzione  find_client_by_socket\n");
+    return NULL;
+}
+
+void read_client(char* dest_buffer, int max_length, int fd){
+    client* sender = find_client_by_socket(fd);
+
+    int space_left = CMD_BUFF_SIZE - 1 - sender->n_byte;
+
+    if(space_left == 0){
+        printf("buffer dei comandi pieno\n");
+        return;
+    }
+    char* buff_pt = sender.buff + sender.n_byte;
+    int n = recv(fd, buff_pt, space_left, 0);
+
+    if(n < 0){
+        return n;
+    }
+    else if(n == 0){
+        printf("porta %d si e' disconnesso\n", sender->port);
+        FD_CLR(fd, &masterfds);
+        close(fd);
+        if(fd == maxfd){
+            while(!FD_ISSET(maxfd, &masterfds) && maxfd > 0)
+                maxfd--;
+        }
+        sender->socket = 0;
+        sender->n_byte = 0;
+        sender->port = 0;
+        memset(sender->buff, 0, CMD_BUFF_SIZE);
+        return;
+    }
 }
 
 
 int check_net(){
-    
+
     readfds = masterfds;
 
     struct timeval tv;
@@ -186,25 +217,93 @@ int check_net(){
         printf("Timeout scaduto, nessun messaggio ricevuto entro il tempo limite\n");
         // gestisci timeout
     }
-    else{
-        for(int i = 0; i <= maxfd; ++i){
-            if(FD_ISSET(i, &readfds)){
-                if(i == STDIN_FILENO){
-                    cmd_stdin();
-                }
-                else if(i == sockfd){
-                    new_connection();
-                }
-                else{
-                    //cmd_client();
-                }
+    
+    if(FD_ISSET(STDIN_FILENO, &readfds)){
+            read_stdin();
+    }
+        
+    if(FD_ISSET(sockfd, &readfds)){
+            new_connection();
+        }
+        
+    for(int i = 0; i <= MAX_CLIENTS; ++i){
+        int socket = clients_arr[i].socket;
+        if(socket > 0 && FD_ISSET(socket, &readfds)){
+            read_client(socket);
+        }
+    }
+
+    return 0;
+}
+
+void remove_cmd_from_buffer(client* c, int cmd_length){
+    int remaining_bytes = c->n_byte - (cmd_length + 1);
+        if(remaining_bytes >= 0){
+        memmove(c->buff, c->buff + cmd_length + 1, remaining_bytes);
+    }
+    c->n_byte = remaining_bytes;
+    memset(c->buff + c->n_byte, 0, CMD_BUFF_SIZE - c->n_byte);
+
+}
+
+int extract_line_from_buffer(client* c, char* dest_buffer, int max_length){
+    if(c->n_byte == 0) return 0;
+
+    int cmd_len;
+    bool found = false;
+    for(int i = 0; i < c->n_byte; ++i){
+        if(c->buff[i] == '\n'){
+            cmd_len = i;
+            found = true;
+            c->buff[i] = '\0';
+            break;
+        }
+    }
+
+    if(found){
+        if(cmd_len > max_length || cmd_len == 0){
+            printf("comando non valido troppo lungo o vuoto \n");
+            remove_cmd_from_buffer(c, cmd_len);
+            return -1;
+        }
+        
+        memcpy(dest_buffer, c->buff, cmd_len);
+        dest_buffer[cmd_len] = '\0';
+        remove_cmd_from_buffer(c, cmd_len);
+        return 1;
+    }
+
+    return 0;
+}
+
+int get_command_form_net(char* dest_buffer, int max_length){
+    if(extract_line_from_buffer(&cmd_interface, dest_buffer, max_length) == 0){
+        return 0;
+    }
+
+    for(int i = 0; i < MAX_CLIENTS; ++i){
+        if(clients_arr[i].socket > 0){
+            if(extract_line_from_buffer(&clients_arr[i], dest_buffer, max_length) == 0){
+                return 1;
             }
         }
     }
+
+    return 0;
 }
-
-
 
 void close_net(){
-    
+    if(sockfd > 0){
+        close(sockfd);
+        sockfd = 0;
+    }
+
+    for(int i = 0; i < MAX_CLIENTS; ++i){
+        if(clients_arr[i].socket != 0){
+            close(clients_arr[i].socket);
+        }
+    }
+
+    printf("chiusura socket completata!\n");
 }
+
