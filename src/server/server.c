@@ -10,10 +10,31 @@
 #include <pthread.h>
 #include <errno.h>
 #include <time.h>
-#include "../../shared/lavagna.h"
+#include <stdint.h>
+#include "net/net.h"
 
 
 
 int main(int argc, char*argv[]){
-    
+    printf("inizio configurazionen\n");
+    ServerEvent event;
+
+    if (server_setup() != 0){
+        printf("[ERROR]: errore nella configurazione del server\n");
+        exit(-1);
+    }
+
+    printf("Configurazione andata a buon fine.\n");
+
+    while(1){
+        check_net();
+
+        while(get_command_form_net(&event)){
+            printf("[RICEVUTO da FD %d]: %s\n",event.socket, event.buffer);
+        }
+    }
+
+    // gestione periodica per PING
+
+
 }

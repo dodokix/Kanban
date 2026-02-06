@@ -5,12 +5,14 @@
 #include <netinet/in.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdint.h>
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <string.h>
 #include <pthread.h>
 #include <errno.h>
 #include <time.h>
+#include <stdbool.h>
 #include "../../shared/constants/net_constants.h"
 #include "../../shared/constants/core_constants.h"
 #include "../../shared/cmd/cmd.h"
@@ -33,6 +35,12 @@ client cmd_interface = {
     .port = 0,
     .n_byte = 0
 };
+
+// typedef struct {
+//     int client_fd;
+//     uint16_t port;
+//     char buffer[CMD_BUFF_SIZE];
+// } ServerEvent;
 
 
 fd_set masterfds;
@@ -109,7 +117,7 @@ void remove_client(client* client){
     FD_CLR(socket, &masterfds);
     close(socket);
     int i;
-    for(i = FD_SETSIZE - 1; i >= 0 && !FD_ISSET(i, &masterfds); ++i);
+    for(i = maxfd; i >= 0 && !FD_ISSET(i, &masterfds); --i);
     maxfd = i;
 }
 
@@ -140,13 +148,13 @@ void new_connection(){
 }
 
 //
-void read_stdin(char* dest_buffer, int max_length){
+int read_stdin(){
 
     int space_left = CMD_BUFF_SIZE - 1 - cmd_interface.n_byte;
 
     if(space_left == 0){
         printf("buffer stdin pieno\n");
-        return;
+        return 0;
     }
     char* buff_pt = cmd_interface.buff + cmd_interface.n_byte;
     int n = read(cmd_interface.socket, buff_pt, space_left);
@@ -168,16 +176,16 @@ client* find_client_by_socket(int fd){
     return NULL;
 }
 
-void read_client(char* dest_buffer, int max_length, int fd){
+int read_client(){
     client* sender = find_client_by_socket(fd);
 
     int space_left = CMD_BUFF_SIZE - 1 - sender->n_byte;
 
     if(space_left == 0){
         printf("buffer dei comandi pieno\n");
-        return;
+        return 0;
     }
-    char* buff_pt = sender.buff + sender.n_byte;
+    char* buff_pt = sender->buff + sender->n_byte;
     int n = recv(fd, buff_pt, space_left, 0);
 
     if(n < 0){
@@ -195,7 +203,7 @@ void read_client(char* dest_buffer, int max_length, int fd){
         sender->n_byte = 0;
         sender->port = 0;
         memset(sender->buff, 0, CMD_BUFF_SIZE);
-        return;
+        return 1;
     }
 }
 
@@ -276,14 +284,19 @@ int extract_line_from_buffer(client* c, char* dest_buffer, int max_length){
     return 0;
 }
 
-int get_command_form_net(char* dest_buffer, int max_length){
-    if(extract_line_from_buffer(&cmd_interface, dest_buffer, max_length) == 0){
-        return 0;
+int get_command_form_net(ServerEvent* event){
+
+    if(extract_line_from_buffer(&cmd_interface, event->buffer, CMD_BUFF_SIZE) > 0){
+        event->client_fd = STDIN_FILENO;
+        event->port = 0;
+        return 1;
     }
 
     for(int i = 0; i < MAX_CLIENTS; ++i){
         if(clients_arr[i].socket > 0){
-            if(extract_line_from_buffer(&clients_arr[i], dest_buffer, max_length) == 0){
+            if(extract_line_from_buffer(&clients_arr[i], event->buffer, CMD_BUFF_SIZE) > 0){
+                event->client_fd = clients_arr[i].socket;
+                event->port = clients_arr[i].port;
                 return 1;
             }
         }
