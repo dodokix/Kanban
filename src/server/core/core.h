@@ -1,7 +1,11 @@
-#ifndef CARD_H
-#define CARD_H
 
-#include "../server_constants.h"
+#include <time.h>
+#include <stdbool.h>
+#include "../../shared/core/core.h"
+
+#define MAX_CLIENTS 4
+#define MAX_CARDS 10
+
 typedef struct{
     int socket_fd;
     int port;
@@ -16,21 +20,9 @@ typedef struct {
     Card *lista_card[MAX_CARDS];
 } Lavagna ;
 
-typedef enum{
-    TO_DO,
-    DOING,
-    DONE
-}CardStatus;
-
-typedef struct{
-    int id;
-    CardStatus colonna;
-    char testo[256];
-    int porta_utente;
-    time_t last_update;
-} Card;
 
 int get_port_from_socket(int client_fd, Lavagna *lav);
 void cmd_create_card(const char* buffer, int client_fd, Lavagna *lav);
 void first_cards(Lavagna *lav);
-Lavagna* initialize_lav();
+void initialize_lav();
+void handle_command(ServerEvent* event);

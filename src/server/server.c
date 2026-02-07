@@ -12,6 +12,7 @@
 #include <time.h>
 #include <stdint.h>
 #include "net/net.h"
+#include "core/core.h"
 
 
 
@@ -31,9 +32,9 @@ int main(int argc, char*argv[]){
 
         while(get_command_from_net(&event)){
             printf("[RICEVUTO da FD %d]: %s\n",event.port, event.buffer);
+            handle_command(&event);
         }
-        if(strcmp(event.buffer, "end") == 0)
-            break;
+        
     }
 
     // gestione periodica per PING

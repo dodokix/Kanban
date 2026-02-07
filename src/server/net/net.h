@@ -3,16 +3,16 @@
 
 #define CMD_BUFF_SIZE 1024
 #include <stdint.h>
+#include "../../shared/core/core.h"
 
-typedef struct {
-    int client_fd;
-    uint16_t port;
-    char buffer[CMD_BUFF_SIZE];
-} ServerEvent;
+
 
 int server_setup();
 int check_net();
-int get_command_from_net(ServerEvent*);
 void close_net();
+/*
+get_command_from_net estrae una riga inviata al server.
+*/
+int get_command_from_net(ServerEvent* event);
 
 #endif

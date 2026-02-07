@@ -15,7 +15,7 @@
 #include <stdbool.h>
 #include "../../shared/constants/net_constants.h"
 #include "../../shared/constants/core_constants.h"
-#include "../../shared/cmd/cmd.h"
+#include "../../shared/core/core.h"
 
 #define STDIN 0
 

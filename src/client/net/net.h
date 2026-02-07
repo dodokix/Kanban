@@ -1,9 +1,6 @@
 #ifndef CLIENT_NET_H
 #define CLIENT_NET_H
 
-#include "../../shared/client_constants.h"
+int setup_server_socket();
 
-extern int port;
-
-int configure_port();
-void close_port();
+#endif

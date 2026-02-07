@@ -1,8 +1,12 @@
-#include "net.h"
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/select.h>
 #include <netinet/in.h>
+#include <stdio.h>      // Per printf
+#include <string.h>     // Per memset
+#include <arpa/inet.h>  // Per inet_pton, AF_INET
+#include <unistd.h>     // Per close
+#include "net.h"
 
 #define BUFFER_SIZE 1024
 #define SERVER_PORT 5678
@@ -10,9 +14,11 @@
 int server_fd;
 int listen_fd;
 int port;
-struct sockaddr_in usr_addr, server_addr;
+struct sockaddr_in usr_addr;
 
 int setup_server_socket(){
+
+    struct sockaddr_in server_addr;
 
     if((server_fd = socket(AF_INET, SOCK_STREAM, 0)) < 0){
         printf("Errore nella creazione del socket\n");
@@ -32,4 +38,8 @@ int setup_server_socket(){
         printf("Connessione fallita\n");
         return -1;
     }
+
+    send(server_fd, "HELLO", sizeof("HELLO"), 0);
+    close(server_fd);
+    return 0;
 }
