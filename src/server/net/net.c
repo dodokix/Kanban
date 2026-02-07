@@ -164,6 +164,7 @@ int read_stdin(){
     }
 
     cmd_interface.n_byte += n;
+    return 0;
 }
 
 client* find_client_by_socket(int fd){
@@ -176,7 +177,7 @@ client* find_client_by_socket(int fd){
     return NULL;
 }
 
-int read_client(){
+int read_client(int fd){
     client* sender = find_client_by_socket(fd);
 
     int space_left = CMD_BUFF_SIZE - 1 - sender->n_byte;
@@ -205,6 +206,7 @@ int read_client(){
         memset(sender->buff, 0, CMD_BUFF_SIZE);
         return 1;
     }
+    return 0;
 }
 
 
@@ -284,7 +286,7 @@ int extract_line_from_buffer(client* c, char* dest_buffer, int max_length){
     return 0;
 }
 
-int get_command_form_net(ServerEvent* event){
+int get_command_from_net(ServerEvent* event){
 
     if(extract_line_from_buffer(&cmd_interface, event->buffer, CMD_BUFF_SIZE) > 0){
         event->client_fd = STDIN_FILENO;

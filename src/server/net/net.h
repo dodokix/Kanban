@@ -11,6 +11,8 @@ typedef struct {
 } ServerEvent;
 
 int server_setup();
+int check_net();
 int get_command_from_net(ServerEvent*);
+void close_net();
 
 #endif

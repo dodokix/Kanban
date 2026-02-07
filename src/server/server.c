@@ -29,12 +29,14 @@ int main(int argc, char*argv[]){
     while(1){
         check_net();
 
-        while(get_command_form_net(&event)){
-            printf("[RICEVUTO da FD %d]: %s\n",event.socket, event.buffer);
+        while(get_command_from_net(&event)){
+            printf("[RICEVUTO da FD %d]: %s\n",event.port, event.buffer);
         }
+        if(strcmp(event.buffer, "end") == 0)
+            break;
     }
 
     // gestione periodica per PING
-
-
+    close_net();
+    return 0;
 }
