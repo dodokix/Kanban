@@ -13,12 +13,13 @@
 #include <stdint.h>
 #include "net/net.h"
 #include "core/core.h"
+#include "../shared/protocol/protocol.h"
 
 
 
 int main(int argc, char*argv[]){
     printf("inizio configurazionen\n");
-    ServerEvent event;
+    Message event;
 
     if (server_setup() != 0){
         printf("[ERROR]: errore nella configurazione del server\n");
@@ -34,7 +35,6 @@ int main(int argc, char*argv[]){
             printf("[RICEVUTO da FD %d]: %s\n",event.port, event.buffer);
             handle_command(&event);
         }
-        
     }
 
     // gestione periodica per PING

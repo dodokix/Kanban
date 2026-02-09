@@ -1,4 +1,0 @@
-#define SERVER_PORT 5678
-#define SERVER_ADDRESS "127.0.0.1"
-#define BACKLOG 5
-#define MAX_CLIENTS 4
