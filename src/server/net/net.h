@@ -13,6 +13,6 @@ void close_net();
 /*
 get_command_from_net estrae una riga inviata al server.
 */
-int get_command_from_net(ServerEvent* event);
+int get_command_from_net(Message* msg);
 
 #endif

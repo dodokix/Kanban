@@ -7,119 +7,285 @@
 #include "../../shared/core/core.h"
 
 Lavagna lav;
+static int next_card_id =1 1;
 
-typedef void (*command_handler)(ServerEvent* event);
-
-void hello_handler(ServerEvent* event);
-
-typedef struct{
-    char* name;
-    command_handler handler;
-}command_entry;
-
-command_entry cmd_table[] = {
-    {"HELLO", hello_handler},
-    {NULL , NULL}
-};
-
-void initialize_lav(){
+void initialize_lavagna() {
+    printf("\n========================================\n");
+    printf("  INIZIALIZZAZIONE LAVAGNA KANBAN\n");
+    printf("========================================\n\n");
+    
     lav.id_lavagna = 1;
-    for(int i = 0; i<MAX_CARDS; ++i){
-        lav.lista_card[i] = 0;
+    lav.num_utenti = 0;
+    lav.num_cards = 0;
+    
+    for(int i = 0; i < MAX_CARDS; i++) {
+        lav.cards[i] = NULL;
     }
-    for(int i = 0; i<MAX_CLIENTS; ++i){
-        lav.lista_clients[i].attivo = false;
+    
+    for(int i = 0; i < MAX_CLIENTS; i++) {
+        lav.lista_utenti[i].socket_fd = -1;
+        lav.lista_utenti[i].port = 0;
+        lav.lista_utenti[i].attivo = false;
+        lav.lista_utenti[i].last_ping = 0;
     }
-
-    lav.num_card = 0;
-    lav.user_counter = 0;
+    
+    create_initial_cards();
+    show_lavagna();
 }
-void handle_command(ServerEvent* event){
-    for(int i = 0; cmd_table[i].name != NULL; ++i){
-        if(strncmp(cmd_table[i].name, event->buffer, strlen(cmd_table[i].name)) == 0){
-            cmd_table[i].handler(event);
-            return;
+
+void create_initial_cards() {
+    const char* initial_tasks[INITIAL_CARDS] = {
+        "Spesa",
+        "Lavatrice",
+        "Spazzare",
+        "Implementare protocollo",
+        "Debuggare progetto",
+        "Ottimizzare lato server",
+        "Aggiornare documentazione",
+        "Irrobustire la sicurezza",
+        "Implementare logging",
+        "Revisionare codice"
+    };
+    
+    printf("[INIT] Creazione %d card iniziali...\n", INITIAL_CARDS);
+    for(int i = 0; i < INITIAL_CARDS; i++) {
+        create_card(initial_tasks[i], 0);
+    }
+    printf("[INIT] Card iniziali create con successo\n\n");
+}
+
+Card* create_card(const char* text, int user_port) {
+    if(lav.num_cards >= MAX_CARDS) {
+        printf("[ERROR] Lavagna piena, impossibile creare nuova card\n");
+        return NULL;
+    }
+    
+    Card* new_card = (Card*)malloc(sizeof(Card));
+    if(!new_card) {
+        perror("malloc");
+        return NULL;
+    }
+    
+    new_card->id = next_card_id++;
+    new_card->column = COL_TODO;
+    strncpy(new_card->text, text, MAX_TEXT_LEN - 1);
+    new_card->text[MAX_TEXT_LEN - 1] = '\0';
+    new_card->user_port = user_port;
+    new_card->last_update = time(NULL);
+    
+    lav.cards[lav.num_cards++] = new_card;
+    
+    return new_card;
+}
+
+void move_card(int card_id, ColumnType new_column) {
+    Card* card = get_card_by_id(card_id);
+    if(!card) {
+        printf("[ERROR] Card %d non trovata\n", card_id);
+        return;
+    }
+    
+    const char* old_col = column_to_string(card->column);
+    const char* new_col = column_to_string(new_column);
+    
+    printf("[MOVE_CARD] Card %d: %s -> %s\n", card_id, old_col, new_col);
+    
+    card->column = new_column;
+    card->last_update = time(NULL);
+    
+    show_lavagna();
+}
+
+Card* get_card_by_id(int card_id) {
+    for(int i = 0; i < lav.num_cards; i++) {
+        if(lav.cards[i] && lav.cards[i]->id == card_id) {
+            return lav.cards[i];
+        }
+    }
+    return NULL;
+}
+
+void show_lavagna() {
+    printf("\n╔════════════════════════════════════════════════════════════════════╗\n");
+    printf("║                      STATO LAVAGNA KANBAN                          ║\n");
+    printf("╠════════════════════════════════════════════════════════════════════╣\n");
+    printf("║  Utenti attivi: %d                                               ║\n", lav.num_utenti);
+    printf("╚════════════════════════════════════════════════════════════════════╝\n\n");
+    
+    // Conta card per colonna
+    int todo_count = 0, doing_count = 0, done_count = 0;
+    for(int i = 0; i < lav.num_cards; i++) {
+        if(!lav.cards[i]) continue;
+        switch(lav.cards[i]->column) {
+            case COL_TODO: todo_count++; break;
+            case COL_DOING: doing_count++; break;
+            case COL_DONE: done_count++; break;
+        }
+    }
+    
+    printf("┌─────────────────────┬─────────────────────┬─────────────────────┐\n");
+    printf("│   TODO (%2d)         │   DOING (%2d)        │   DONE (%2d)         │\n", 
+           todo_count, doing_count, done_count);
+    printf("├─────────────────────┼─────────────────────┼─────────────────────┤\n");
+    
+    // Trova numero massimo di righe necessarie
+    int max_rows = todo_count;
+    if(doing_count > max_rows) max_rows = doing_count;
+    if(done_count > max_rows) max_rows = done_count;
+    
+    // Array per memorizzare le card per colonna
+    Card* todo_cards[MAX_CARDS] = {NULL};
+    Card* doing_cards[MAX_CARDS] = {NULL};
+    Card* done_cards[MAX_CARDS] = {NULL};
+    
+    int todo_idx = 0, doing_idx = 0, done_idx = 0;
+    for(int i = 0; i < lav.num_cards; i++) {
+        if(!lav.cards[i]) continue;
+        switch(lav.cards[i]->column) {
+            case COL_TODO: 
+                todo_cards[todo_idx++] = lav.cards[i];
+                break;
+            case COL_DOING:
+                doing_cards[doing_idx++] = lav.cards[i];
+                break;
+            case COL_DONE:
+                done_cards[done_idx++] = lav.cards[i];
+                break;
+        }
+    }
+    
+    // Stampa le righe
+    for(int row = 0; row < max_rows; row++) {
+        printf("│");
+        
+        // Colonna TODO
+        if(row < todo_count && todo_cards[row]) {
+            char text[19];
+            strncpy(text, todo_cards[row]->text, 18);
+            text[18] = '\0';
+            printf(" [%2d] %-14s │", todo_cards[row]->id, text);
+        } else {
+            printf("                     │");
+        }
+        
+        // Colonna DOING
+        if(row < doing_count && doing_cards[row]) {
+            char text[19];
+            strncpy(text, doing_cards[row]->text, 14);
+            text[14] = '\0';
+            printf(" [%2d] %-11s  │", doing_cards[row]->id, text);
+        } else {
+            printf("                     │");
+        }
+        
+        // Colonna DONE
+        if(row < done_count && done_cards[row]) {
+            char text[19];
+            strncpy(text, done_cards[row]->text, 14);
+            text[14] = '\0';
+            printf(" [%2d] %-11s  │", done_cards[row]->id, text);
+        } else {
+            printf("                     │");
+        }
+        
+        printf("\n");
+    }
+    
+    printf("└─────────────────────┴─────────────────────┴─────────────────────┘\n\n");
+}
+
+Utente* find_utente_by_port(int port) {
+    for(int i = 0; i < MAX_CLIENTS; i++) {
+        if(lav.lista_utenti[i].attivo && lav.lista_utenti[i].port == port) {
+            return &lav.lista_utenti[i];
+        }
+    }
+    return NULL;
+}
+
+Utente* find_utente_by_socket(int socket_fd) {
+    for(int i = 0; i < MAX_CLIENTS; i++) {
+        if(lav.lista_utenti[i].attivo && lav.lista_utenti[i].socket_fd == socket_fd) {
+            return &lav.lista_utenti[i];
+        }
+    }
+    return NULL;
+}
+
+int get_active_users_count() {
+    return lav.num_utenti;
+}
+
+void get_active_users_list(int* ports, int* count) {
+    *count = 0;
+    for(int i = 0; i < MAX_CLIENTS; i++) {
+        if(lav.lista_utenti[i].attivo) {
+            ports[(*count)++] = lav.lista_utenti[i].port;
         }
     }
 }
 
-void hello_handler(ServerEvent* event){
-    for(int i = 0; i<MAX_CLIENTS; ++i){
-        if(lav.lista_clients[i].attivo != false)
-            continue;
-        lav.lista_clients[i].attivo = true;
-        lav.lista_clients[i].port = event->port;
-        lav.lista_clients[i].socket_fd = event->client_fd;
-        lav.user_counter++;
-        printf("Utente registrato: FD %d, Porta P2P %d. Totale utenti: %d\n", 
-                            event->client_fd, event->port, lav.user_counter); 
-
-        send(event->client_fd, "ACK_HELLO\n", strlen("ACK_HELLO\n"), 0);
-        return;
+void handle_command(Message* msg) {
+    // Parsing messaggio
+    
+    printf("[CMD] Ricevuto %s da porta %d\n", command_to_string(msg.type), msg.sender_port);
+    
+    switch(msg.type) {
+        case CMD_HELLO:
+            handle_hello(event);
+            break;
+        case CMD_QUIT:
+            handle_quit(event);
+            break;
+        case CMD_CREATE_CARD:
+            handle_create_card(event);
+            break;
+        case CMD_ACK_CARD:
+            handle_ack_card(event);
+            break;
+        case CMD_CARD_DONE:
+            handle_card_done(event);
+            break;
+        case CMD_SHOW_LAVAGNA:
+            handle_show_lavagna(event);
+            break;
+        case CMD_PONG_LAVAGNA:
+            handle_pong_lavagna(event);
+            break;
+        default:
+            printf("[WARN] Comando non gestito: %s\n", command_to_string(msg.type));
+            break;
     }
-
-    send(event->client_fd, "ERR_HELLO\n", strlen("ERR_HELLO\n"), 0);
 }
 
+void handle_hello(Message* msg) {
 
-
-
-// int get_port_from_socket(int client_fd, Lavagna *lav){
-//     for(int i = 0; i < MAX_CLIENTS; ++i){
-//         if(lav->lista_clients[i].attivo && lav->lista_clients[i].socket_fd == client_fd){
-//             return lav->lista_clients[i].port;
-//         }
-//     }
-//     return -1;
-// }
-
-// void cmd_create_card(const char* buffer, int client_port, Lavagna *lav){
-//     Card *new_card = malloc(sizeof(Card));
-
-//     if(new_card == NULL){
-//         perror("errore allocazione memeoria! \n");
-//         return ;
-//     }
-
-//     new_card->id = lav->num_card++;
-//     new_card->colonna = TO_DO;
-//     if(client_fd == PORT){
-//         new_card->porta_utente = PORT;
-
-//     }
-//     else{
-//         new_card->porta_utente = get_port_from_socket(client_fd, lav);
-//     }
-//     strncpy(new_card->testo, buffer, sizeof(new_card->testo) - 1);
-//     new_card->testo[sizeof(new_card->testo) - 1] = '\0';
-//     new_card->last_update = time(NULL);
-
-//     int aggiunta = -1;
-//     for(int i = 0; i < MAX_CARDS; ++i){
-//         if(!lav->lista_card[i]){
-//             lav->lista_card[i] = new_card;
-//             aggiunta = 1;
-//             break;
-//         }
-//     }
-
-//     if(!aggiunta){
-//         printf("Errore: lavagna piena, impossibile aggiungere la card. \n");
-//         free(new_card);
-//         lav->num_card--;
-//     }
-// }
-
-// void first_cards(Lavagna *lav){
-
-//     const char *arr_buf[INITIAL_CARDS] = {
-//         "task1", "task2","task3","task4","task5",
-//         "task6","task7","task8","task9","task10", 
-//     };
-
-//     for(int i = 0; i < INITIAL_CARDS; ++i){
-//         cmd_create_card(arr_buf[i], PORT, lav);
-//     }
-//     return;
+    // Verifica se l'utente è già registrato
+    if(find_utente_by_port(msg.sender_port)) {
+        printf("[WARN] Utente %d già registrato\n", msg.sender_port);
+        send_to_client(event->client_fd, "ERR_ALREADY_REGISTERED\n", 24);
+        return;
+    }
     
-// }
+    // Trova slot libero
+    for(int i = 0; i < MAX_CLIENTS; i++) {
+        if(!lav.lista_utenti[i].attivo) {
+            lav.lista_utenti[i].attivo = true;
+            lav.lista_utenti[i].port = msg.sender_port;
+            lav.lista_utenti[i].socket_fd = event->client_fd;
+            lav.lista_utenti[i].last_ping = time(NULL);
+            lav.num_utenti++;
+            
+            printf("[HELLO] Utente registrato: Porta %d, Totale utenti: %d\n", 
+                   msg.sender_port, lav.num_utenti);
+            
+            send_to_client(event->client_fd, "ACK_HELLO\n", 10);
+            
+            // Verifica se possiamo iniziare ad assegnare card (PARI: almeno 2 utenti)
+            check_and_send_available_cards();
+            return;
+        }
+    }
+    
+    send_to_client(event->client_fd, "ERR_LAVAGNA_FULL\n", 17);
+}

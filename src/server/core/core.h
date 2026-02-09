@@ -1,28 +1,63 @@
+#ifndef SERVER_CORE_H
+#define SERVER_CORE_H
 
 #include <time.h>
 #include <stdbool.h>
 #include "../../shared/core/core.h"
+#include "../../shared/protocol/protocol.h"
+#include "../../shared/constants/core_constants.h"
+#include "../../shared/constants/net_constants.h"
 
-#define MAX_CLIENTS 4
-#define MAX_CARDS 10
-
-typedef struct{
+/* Struttura utente registrato */
+typedef struct {
     int socket_fd;
     int port;
     bool attivo;
+    time_t last_ping;
 } Utente;
 
+/* Struttura lavagna */
 typedef struct {
     int id_lavagna;
-    Utente lista_clients[MAX_CLIENTS];
-    int user_counter;
-    int num_card;
-    Card *lista_card[MAX_CARDS];
-} Lavagna ;
+    Utente lista_utenti[MAX_CLIENTS];
+    int num_utenti;
+    Card* cards[MAX_CARDS];
+    int num_cards;
+} Lavagna;
 
+/* Funzioni di inizializzazione */
+void initialize_lavagna();
+void create_initial_cards();
 
-int get_port_from_socket(int client_fd, Lavagna *lav);
-void cmd_create_card(const char* buffer, int client_fd, Lavagna *lav);
-void first_cards(Lavagna *lav);
-void initialize_lav();
+/* Funzioni di gestione card */
+Card* create_card(const char* text, int user_port);
+void move_card(int card_id, ColumnType new_column);
+Card* get_card_by_id(int card_id);
+void show_lavagna();
+
+/* Funzioni di gestione utenti */
+Utente* find_utente_by_port(int port);
+Utente* find_utente_by_socket(int socket_fd);
+int get_active_users_count();
+void get_active_users_list(int* ports, int* count);
+
+/* Handler comando principale */
 void handle_command(ServerEvent* event);
+
+/* Handler comandi specifici */
+void handle_hello(ServerEvent* event);
+void handle_quit(ServerEvent* event);
+void handle_create_card(ServerEvent* event);
+void handle_ack_card(ServerEvent* event);
+void handle_card_done(ServerEvent* event);
+void handle_show_lavagna(ServerEvent* event);
+void handle_pong_lavagna(ServerEvent* event);
+
+/* Funzioni per matricola PARI */
+void send_available_card_to_all();
+void check_and_send_available_cards();
+
+/* Sistema PING */
+void check_ping_timeouts();
+
+#endif

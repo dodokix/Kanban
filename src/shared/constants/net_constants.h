@@ -1,0 +1,10 @@
+#ifndef SHARED_NET_CONSTANTS_H
+#define SHARED_NET_CONSTANTS_H
+
+#define SERVER_PORT 5678
+#define SERVER_ADDRESS "127.0.0.1"
+#define BACKLOG 10
+#define MAX_CLIENTS 10
+#define MAX_USERS 10
+
+#endif
