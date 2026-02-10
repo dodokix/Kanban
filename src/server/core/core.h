@@ -52,7 +52,6 @@ void handle_ack_card(Message* event);
 void handle_card_done(Message* event);
 void handle_pong_lavagna(Message* event);
 
-/* Funzioni per matricola PARI */
 void send_available_card_to_all();
 void check_and_send_available_cards();
 

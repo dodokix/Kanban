@@ -296,3 +296,7 @@ void close_net(){
     printf("chiusura socket completata!\n");
 }
 
+int send_to_client(Message* msg){
+    
+
+}

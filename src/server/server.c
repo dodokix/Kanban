@@ -21,21 +21,30 @@ int main(int argc, char*argv[]){
     printf("                 LAVAGNA                   \n");
     printf("===========================================\n\n");
 
-    
+    initialize_lavagna();
 
     if (server_setup() != 0){
         printf("[ERROR]: errore nella configurazione del server\n");
         exit(-1);
     }
 
-    printf("Configurazione andata a buon fine.\n");
+    printf("[SERVER]: Configurazione andata a buon fine.\n");
+
+    time_t last_ping_check = time(NULL);
 
     while(1){
         check_net();
 
-        while(get_command_from_net(&event)){
+        Message msg;
+        while(get_message_from_net(&msg)){
             printf("[RICEVUTO da FD %d]: %s\n",event.port, event.buffer);
-            handle_command(&event);
+            handle_command(&msg);
+        }
+
+        time_t now = time(NULL);
+        if(difftime(now, last_ping_check) > 10){
+            check_ping_timeouts();
+            last_ping_check = now;
         }
     }
 

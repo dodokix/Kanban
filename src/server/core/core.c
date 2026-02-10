@@ -225,11 +225,30 @@ void get_active_users_list(int* ports, int* count) {
     }
 }
 
+void handle_console_command(Message* msg){
+    if(strcmp(msg->text, "quit") == 0){
+        printf("[SERVER]: chiusura del server in corso...\n");
+        close_net();
+        exit(0);
+    }
+    else if(strcmp(msg->text, "help") == 0){
+        printf("Comandi disponibili: \n");
+        printf("  show  - Mostra stato lavagna\n");
+        printf("  quit  - Termina server\n");
+        printf("  help  - Mostra questo messaggio\n\n");
+    }
+    else if(strcmp(msg->text, "show") == 0) show_lavagna();
+}
+
 void handle_command(Message* msg) {
     // Parsing messaggio
     
     printf("[CMD] Ricevuto %s da porta %d\n", command_to_string(msg->type), msg->sender_port);
-    
+    if(msg->sender_port == STDIN_FILENO) {
+        handle_console_command(msg);
+        return;
+    }
+
     switch(msg->type) {
         case CMD_HELLO:
             handle_hello(msg);
@@ -263,7 +282,7 @@ void handle_hello(Message* msg) {
     // Verifica se l'utente è già registrato
     if(find_utente_by_port(msg->sender_port)) {
         printf("[WARN] Utente %d già registrato\n", msg->sender_port);
-        send_to_client(msg->socket_fd, "ERR_ALREADY_REGISTERED\n", 24);
+        send(msg->socket_fd, "ERR_ALREADY_REGISTERED\n", 24);
         return;
     }
     
@@ -279,7 +298,7 @@ void handle_hello(Message* msg) {
             printf("[HELLO] Utente registrato: Porta %d, Totale utenti: %d\n", 
                    msg->sender_port, lav.num_utenti);
             
-            send_to_client(msg->socket_fd, "ACK_HELLO\n", 10);
+            send(msg->socket_fd, "ACK_HELLO\n", 10);
             
             // Verifica se possiamo iniziare ad assegnare card
             check_and_send_available_cards();
@@ -287,7 +306,7 @@ void handle_hello(Message* msg) {
         }
     }
     
-    send_to_client(msg->socket_fd, "ERR_LAVAGNA_FULL\n", 17);
+    send(msg->socket_fd, "ERR_LAVAGNA_FULL\n", 17);
 }
 
 void handle_quit(Message* msg){
@@ -336,48 +355,107 @@ void handle_pong_lavagna(Message* msg) {
     if(u) u->last_ping = time(NULL);
 }
 
-void check_and_send_available_cards() {
-    //Se utenti >= 2, invia la prima card TODO
-    if(lav.num_utenti < 2) return;
-
-    Card* next_card = NULL;
-    for(int i=0; i<lav.num_cards; i++) {
-        if(lav.cards[i] && lav.cards[i]->column == COL_TODO) {
-            next_card = lav.cards[i];
+void broadcast_available_cards(){
+    Card* card = NULL;
+    for(int i = 0; i < lav.num_cards; ++i){
+        if(lav.cards[i] && lav_cards[i]->column == COL_TODO){
+            card = lav.cards[i];
             break;
         }
     }
 
-    if(!next_card) return;
+    if(!card){
+        printf("[INFO]: Nessuna card in TODO disponibile.\n");
+        return;
+    }
 
-    // Prepara messaggio broadcast
-    Message broadcast_msg;
-    memset(&broadcast_msg, 0, sizeof(Message));
-    broadcast_msg.type = CMD_AVAILABLE_CARD;
-    broadcast_msg.card_id = next_card->id;
-    strncpy(broadcast_msg.text, next_card->text, MAX_TEXT_LEN);
-    broadcast_msg.num_users = 0;
+    int user_ports[MAX_USERS];
+    int num_users;
+    get_active_users_list(user_ports, &num_users);
 
-    // Compila lista utenti attivi
-    int active_ports[MAX_CLIENTS];
-    int count = 0;
-    get_active_users_list(active_ports, &count);
+    if(num_users < 2){
+        return;
+    }
+
+    printf("\n[AVAILABLE CARD] Invio card %d a %d utenti\n", card->id, num_users);
+
+    for(int i = 0; i < num_users; ++i){
+        Utente* utente = find_utente_by_port(user_ports[i]);
+        if(!utente) continue;
+
+        Message msg;
+        memset(&msg, 0, sizeof(Message));
+        msg.type = CMD_AVAILABLE_CARD;
+        msg.sender_port = SERVER_PORT;
+        msg.card_id = card->id;
+        strncpy(msg.text, card->text, MAX_TEXT_LEN - 1);
+        msg.column = card->column;
+        msg.num_users = num_users;
+
+        for(int j = 0; j < num_users; ++j){
+            msg.user_list[j] = user_ports[j];
+        }
+
+        char buffer[2048];
+        int len = serialize_message(&msg, buffer, sizeof(buffer));
+        if(len > 0){
+            send(utente->socket_fd, buffer, len);
+        }
+    }
+}
+
+
+void check_and_send_available_cards() {
     
-    // Invia a tutti
-    for(int i=0; i<count; i++) {
-        // Popola la lista utenti (escludendo destinatario)
-        broadcast_msg.num_users = 0;
-        for(int j=0; j<count; j++) {
-            if(active_ports[j] != active_ports[i]) {
-                broadcast_msg.user_list[broadcast_msg.num_users++] = active_ports[j];
+    if(lav.num_utenti < 2) {
+        return;
+    }
+    
+    // Verifica se c'è almeno una card in TODO
+    bool has_todo = false;
+    for(int i = 0; i < lav.num_cards; i++) {
+        if(lav.cards[i] && lav.cards[i]->column == COL_TODO) {
+            has_todo = true;
+            break;
+        }
+    }
+    
+    if(has_todo) {
+        send_available_card_to_all();
+    }
+}
+
+void check_ping_timeouts(){
+    time_t now = time(NULL);
+
+    for(int i = 0; i < lav.num_cards; ++i){
+        Card* card = lav.cards[i];
+        if(!card || card->column != COL_DOING) continue;
+
+        if(difftime(now, card->last_update) > PING_TIMEOUT){
+            Utente* utente = find_utente_by_port(card->user_port);
+            if(!utente) continue;
+
+            Message ping_msg;
+            memset(&ping_msg, 0, sizeof(Message));
+            ping_msg.type = CMD_PING_USER;
+            ping_msg.card_id = card->id;
+
+            char buffer[2048];
+            int len = serialize_message(&ping_msg, buffer, sizeof(BUFFER));
+            if(len > 0){
+                send(utente->socket_fd, buffer, len);
+                printf("[PING]: inviato ad utente %d per card %d\n", utente->port, card->id);
+            }
+
+            if(difftime(now, utente->last_ping) > PONG_TIMEOUT){
+                printf("[TIMEOUT] Utente %d non ha risposto al PING, card %d rimessa in TODO\n",
+                       utente->port, card->id)
+                       card->column = COL_TODO;
+                       card->user_port = 0;
+                       show_lavagna();
+                       check_and_send_available_cards(); 
             }
         }
-        
-        char buffer[1024];
-        serialize_message(&broadcast_msg, buffer, sizeof(buffer));
-        
-        Utente* dest = find_utente_by_port(active_ports[i]);
-        if(dest) send_to_client(dest->socket_fd, buffer, strlen(buffer));
     }
-    printf("[SERVER] Proposta Card %d agli utenti\n", next_card->id);
 }
