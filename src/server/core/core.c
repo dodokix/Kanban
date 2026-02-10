@@ -263,7 +263,7 @@ void handle_hello(Message* msg) {
     // Verifica se l'utente è già registrato
     if(find_utente_by_port(msg->sender_port)) {
         printf("[WARN] Utente %d già registrato\n", msg->sender_port);
-        send_to_client(msg->client_fd, "ERR_ALREADY_REGISTERED\n", 24);
+        send_to_client(msg->socket_fd, "ERR_ALREADY_REGISTERED\n", 24);
         return;
     }
     
@@ -287,7 +287,7 @@ void handle_hello(Message* msg) {
         }
     }
     
-    send_to_client(msg->client_fd, "ERR_LAVAGNA_FULL\n", 17);
+    send_to_client(msg->socket_fd, "ERR_LAVAGNA_FULL\n", 17);
 }
 
 void handle_quit(Message* msg){

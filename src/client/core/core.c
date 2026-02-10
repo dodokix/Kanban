@@ -1,12 +1,11 @@
 #include "core.h"
-#include "net.h"
-#include "protocol.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
 #include <unistd.h>
 #include "../net/net.h"
+#include "../../shared/protocol/protocol.h"
 
 // Stato dell'asta corrente
 typedef struct {

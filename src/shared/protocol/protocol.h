@@ -17,6 +17,7 @@ typedef struct {
     int num_users;
     int user_list[MAX_CLIENTS];
     char text[CMD_BUFF_SIZE];
+    CardStatus column;
 } Message;
 
 typedef struct{
