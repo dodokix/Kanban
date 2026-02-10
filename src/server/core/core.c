@@ -228,32 +228,32 @@ void get_active_users_list(int* ports, int* count) {
 void handle_command(Message* msg) {
     // Parsing messaggio
     
-    printf("[CMD] Ricevuto %s da porta %d\n", command_to_string(msg.type), msg.sender_port);
+    printf("[CMD] Ricevuto %s da porta %d\n", command_to_string(msg->type), msg->sender_port);
     
-    switch(msg.type) {
+    switch(msg->type) {
         case CMD_HELLO:
-            handle_hello(event);
+            handle_hello(msg);
             break;
         case CMD_QUIT:
-            handle_quit(event);
+            handle_quit(msg);
             break;
         case CMD_CREATE_CARD:
-            handle_create_card(event);
+            handle_create_card(msg);
             break;
         case CMD_ACK_CARD:
-            handle_ack_card(event);
+            handle_ack_card(msg);
             break;
         case CMD_CARD_DONE:
-            handle_card_done(event);
+            handle_card_done(msg);
             break;
         case CMD_SHOW_LAVAGNA:
-            handle_show_lavagna(event);
+            handle_show_lavagna(msg);
             break;
         case CMD_PONG_LAVAGNA:
-            handle_pong_lavagna(event);
+            handle_pong_lavagna(msg);
             break;
         default:
-            printf("[WARN] Comando non gestito: %s\n", command_to_string(msg.type));
+            printf("[WARN] Comando non gestito: %s\n", command_to_string(msg->type));
             break;
     }
 }
@@ -261,8 +261,8 @@ void handle_command(Message* msg) {
 void handle_hello(Message* msg) {
 
     // Verifica se l'utente è già registrato
-    if(find_utente_by_port(msg.sender_port)) {
-        printf("[WARN] Utente %d già registrato\n", msg.sender_port);
+    if(find_utente_by_port(msg->sender_port)) {
+        printf("[WARN] Utente %d già registrato\n", msg->sender_port);
         send_to_client(event->client_fd, "ERR_ALREADY_REGISTERED\n", 24);
         return;
     }
@@ -271,15 +271,15 @@ void handle_hello(Message* msg) {
     for(int i = 0; i < MAX_CLIENTS; i++) {
         if(!lav.lista_utenti[i].attivo) {
             lav.lista_utenti[i].attivo = true;
-            lav.lista_utenti[i].port = msg.sender_port;
-            lav.lista_utenti[i].socket_fd = event->client_fd;
+            lav.lista_utenti[i].port = msg->sender_port;
+            lav.lista_utenti[i].socket_fd = msg->socket;
             lav.lista_utenti[i].last_ping = time(NULL);
             lav.num_utenti++;
             
             printf("[HELLO] Utente registrato: Porta %d, Totale utenti: %d\n", 
-                   msg.sender_port, lav.num_utenti);
+                   msg->sender_port, lav.num_utenti);
             
-            send_to_client(event->client_fd, "ACK_HELLO\n", 10);
+            send_to_client(msg->socket_fd, "ACK_HELLO\n", 10);
             
             // Verifica se possiamo iniziare ad assegnare card (PARI: almeno 2 utenti)
             check_and_send_available_cards();
@@ -289,3 +289,4 @@ void handle_hello(Message* msg) {
     
     send_to_client(event->client_fd, "ERR_LAVAGNA_FULL\n", 17);
 }
+

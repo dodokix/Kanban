@@ -18,8 +18,6 @@ typedef struct {
     char text[CMD_BUFF_SIZE];
 } Message;
 
-
-
 typedef struct{
     int id;
     CardStatus column;

@@ -21,6 +21,8 @@ int main(int argc, char*argv[]){
     printf("                 LAVAGNA                   \n");
     printf("===========================================\n\n");
 
+    
+
     if (server_setup() != 0){
         printf("[ERROR]: errore nella configurazione del server\n");
         exit(-1);

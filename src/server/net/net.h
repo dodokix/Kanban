@@ -15,4 +15,6 @@ get_command_from_net estrae una riga inviata al server.
 */
 int get_command_from_net(Message* msg);
 
+int send_to_client(int client_fd, const char* buffer, int len);
+
 #endif

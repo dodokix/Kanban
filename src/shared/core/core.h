@@ -27,11 +27,5 @@ typedef enum {
     CMD_UNKNOWN             // Comando sconosciuto
 } CommandType;
 
-/* Struttura per eventi dal network al server */
-typedef struct {
-    int client_fd;          // File descriptor del client
-    uint16_t port;          // Porta del client
-    char buffer[2048];      // Buffer con il messaggio ricevuto
-} ServerEvent;
 
 #endif
