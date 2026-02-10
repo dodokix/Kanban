@@ -42,16 +42,15 @@ int get_active_users_count();
 void get_active_users_list(int* ports, int* count);
 
 /* Handler comando principale */
-void handle_command(ServerEvent* event);
+void handle_command(Message* event);
 
 /* Handler comandi specifici */
-void handle_hello(ServerEvent* event);
-void handle_quit(ServerEvent* event);
-void handle_create_card(ServerEvent* event);
-void handle_ack_card(ServerEvent* event);
-void handle_card_done(ServerEvent* event);
-void handle_show_lavagna(ServerEvent* event);
-void handle_pong_lavagna(ServerEvent* event);
+void handle_hello(Message* event);
+void handle_quit(Message* event);
+void handle_create_card(Message* event);
+void handle_ack_card(Message* event);
+void handle_card_done(Message* event);
+void handle_pong_lavagna(Message* event);
 
 /* Funzioni per matricola PARI */
 void send_available_card_to_all();
