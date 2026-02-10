@@ -29,8 +29,8 @@ typedef struct{
 
 const char* command_to_string(CommandType cmd);
 CommandType string_to_command(const char* str);
-const char* column_to_string(ColumnType col);
-ColumnType string_to_column(const char* str);
+const char* column_to_string(CardStatus col);
+CardStatus string_to_column(const char* str);
 
 int serialize_message(const Message* msg, char* buffer, int buffer_size);
 int deserialize_message(const char* buffer, Message* msg);

@@ -264,6 +264,7 @@ int get_message_from_net(Message* msg){
 
     if(extract_line_from_buffer(&cmd_interface, tmp, CMD_BUFF_SIZE) > 0){
         deserialize_message(tmp, msg);
+        msg->socket_fd = STDIN_FILENO;
         return 1;
     }
 
@@ -271,6 +272,7 @@ int get_message_from_net(Message* msg){
         if(clients_arr[i].socket > 0){
             if(extract_line_from_buffer(&clients_arr[i], tmp, CMD_BUFF_SIZE) > 0){
                 deserialize_message(tmp, msg);
+                msg->socket_fd = clients_arr[i].socket;
                 return 1;
             }
         }

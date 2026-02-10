@@ -31,7 +31,7 @@ void create_initial_cards();
 
 /* Funzioni di gestione card */
 Card* create_card(const char* text, int user_port);
-void move_card(int card_id, ColumnType new_column);
+void move_card(int card_id, CardStatus new_column);
 Card* get_card_by_id(int card_id);
 void show_lavagna();
 

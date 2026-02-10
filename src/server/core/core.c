@@ -7,7 +7,7 @@
 #include "../../shared/core/core.h"
 
 Lavagna lav;
-static int next_card_id =1 1;
+static int next_card_id = 1;
 
 void initialize_lavagna() {
     printf("\n========================================\n");
@@ -78,7 +78,7 @@ Card* create_card(const char* text, int user_port) {
     return new_card;
 }
 
-void move_card(int card_id, ColumnType new_column) {
+void move_card(int card_id, CardStatus new_column) {
     Card* card = get_card_by_id(card_id);
     if(!card) {
         printf("[ERROR] Card %d non trovata\n", card_id);
@@ -263,7 +263,7 @@ void handle_hello(Message* msg) {
     // Verifica se l'utente è già registrato
     if(find_utente_by_port(msg->sender_port)) {
         printf("[WARN] Utente %d già registrato\n", msg->sender_port);
-        send_to_client(event->client_fd, "ERR_ALREADY_REGISTERED\n", 24);
+        send_to_client(msg->client_fd, "ERR_ALREADY_REGISTERED\n", 24);
         return;
     }
     
@@ -272,7 +272,7 @@ void handle_hello(Message* msg) {
         if(!lav.lista_utenti[i].attivo) {
             lav.lista_utenti[i].attivo = true;
             lav.lista_utenti[i].port = msg->sender_port;
-            lav.lista_utenti[i].socket_fd = msg->socket;
+            lav.lista_utenti[i].socket_fd = msg->socket_fd;
             lav.lista_utenti[i].last_ping = time(NULL);
             lav.num_utenti++;
             
@@ -287,7 +287,7 @@ void handle_hello(Message* msg) {
         }
     }
     
-    send_to_client(event->client_fd, "ERR_LAVAGNA_FULL\n", 17);
+    send_to_client(msg->client_fd, "ERR_LAVAGNA_FULL\n", 17);
 }
 
 void handle_quit(Message* msg){

@@ -37,7 +37,7 @@ CommandType string_to_command(const char* str) {
     return CMD_UNKNOWN;
 }
 
-const char* column_to_string(ColumnType col) {
+const char* column_to_string(CardStatus col) {
     switch(col) {
         case COL_TODO: return "TODO";
         case COL_DOING: return "DOING";
@@ -46,7 +46,7 @@ const char* column_to_string(ColumnType col) {
     }
 }
 
-ColumnType string_to_column(const char* str) {
+CardStatus string_to_column(const char* str) {
     if(strcmp(str, "TODO") == 0) return COL_TODO;
     if(strcmp(str, "DOING") == 0) return COL_DOING;
     if(strcmp(str, "DONE") == 0) return COL_DONE;

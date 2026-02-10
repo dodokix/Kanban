@@ -1,22 +1,6 @@
 #include "core.h"
 #include "net.h"
 #include "protocol.h"
-
-typedef struct {
-    int card_id;
-    int my_cost;
-    int received_count;
-    int expected_count;
-    struct {
-        int port;
-        int cost;
-    } bids[MAX_USERS];
-    bool active;
-} AuctionState;
-
-AuctionState current_auction = {0};
-
-#include "core.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

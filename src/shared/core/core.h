@@ -8,7 +8,7 @@ typedef enum {
     COL_TODO,
     COL_DOING,
     COL_DONE
-} ColumnType;
+} CardStatus;
 
 /* Definizione tipi di comando */
 typedef enum {
