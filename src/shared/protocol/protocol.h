@@ -8,6 +8,7 @@
 #include "../constants/core_constants.h"
 
 typedef struct {
+    int socket_fd;
     CommandType type;
     int sender_port;
     int dest_port;

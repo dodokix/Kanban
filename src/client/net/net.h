@@ -18,6 +18,6 @@ int client_setup(int myport);
 void check_ioevents();
 int get_next_event();
 int client_clenup();
-
+int send_to_server(const Message* msg);
 
 #endif

@@ -15,8 +15,8 @@ typedef enum {
     CMD_HELLO,              // Registrazione utente
     CMD_QUIT,               // Disconnessione utente
     CMD_CREATE_CARD,        // Creazione nuova card
-    CMD_AVAILABLE_CARD,     // Lavagna notifica card disponibile (PARI)
-    CMD_CHOOSE_USER,        // Utenti si scambiano costi (PARI)
+    CMD_AVAILABLE_CARD,     // Lavagna notifica card disponibile 
+    CMD_CHOOSE_USER,        // Utenti si scambiano costi 
     CMD_ACK_CARD,           // Utente conferma presa in carico
     CMD_CARD_DONE,          // Utente notifica completamento
     CMD_MOVE_CARD,          // Lavagna sposta card
