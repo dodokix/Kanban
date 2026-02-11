@@ -9,10 +9,8 @@
 #include "../core/core.h"
 
 typedef struct {
-    int socket_fd;
     CommandType type;
     int sender_port;
-    int dest_port;
     int card_id;
     int cost;
     int num_users;
@@ -24,7 +22,7 @@ typedef struct {
 typedef struct{
     int id;
     CardStatus column;
-    char testo[MAX_TEXT_LEN];
+    char text[MAX_TEXT_LEN];
     int user_port;
     time_t last_update;
 } Card;

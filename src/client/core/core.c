@@ -1,6 +1,7 @@
 #include "core.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdbool.h>
 #include <string.h>
 #include <time.h>
 #include <unistd.h>
@@ -27,19 +28,17 @@ void handle_server_message(Message* msg) {
         case CMD_AVAILABLE_CARD: {
             printf("\n[ASTA] Nuova card disponibile: ID %d - '%s'\n", msg->card_id, msg->text);
             
-            // 1. Setup Asta
             current_auction.active = true;
             current_auction.card_id = msg->card_id;
-            current_auction.expected_count = msg->num_users; // Numero peer
+            current_auction.expected_count = msg->num_users;
             current_auction.received_count = 0;
             
-            // 2. Genera Costo Casuale
-            srand(time(NULL) ^ my_port);
-            current_auction.my_cost = rand() % 100;
+            srand(time(NULL));
+            current_auction.my_cost = rand();
             printf("[ASTA] Il mio costo: %d. Peer da contattare: %d\n", current_auction.my_cost, msg->num_users);
 
-            // 3. Invia CHOOSE_USER a tutti i peer
-            Message bid_msg = {0};
+            Message bid_msg;
+            memset(&bid_msg, 0, sizeof(Message));
             bid_msg.type = CMD_CHOOSE_USER;
             bid_msg.sender_port = my_port;
             bid_msg.cost = current_auction.my_cost;
@@ -47,35 +46,33 @@ void handle_server_message(Message* msg) {
 
             for(int i=0; i<msg->num_users; i++) {
                 int peer = msg->user_list[i];
-                send_to_peer(peer, &bid_msg);
+                send_to_peer(&bid_msg, peer);
             }
             
-            // Se non ci sono altri peer valuta subito
             if(msg->num_users == 0) check_auction_result();
             break;
         }
         
-        case CMD_ACK_HELLO:
+        case CMD_HELLO:
             printf("[INFO] Registrato correttamente alla lavagna.\n");
             break;
             
         default:
-            printf("[INFO] Messaggio dalla lavagna: %s\n", command_to_string(msg->type));
+            break;
     }
 }
 
-void handle_peer_message(Message* msg, int peer_socket) {
+void handle_peer_message(Message* msg) {
     if(msg->type == CMD_CHOOSE_USER) {
-        if(!current_auction.active || msg->card_id != current_auction.card_id) return;
+        if(!current_auction.active || msg->card_id != current_auction.card_id)
+            return;
         
         printf("[ASTA] Ricevuto costo %d dal peer %d\n", msg->cost, msg->sender_port);
         
-        // Salva l'offerta
-        int idx = current_auction.received_count++;
-        current_auction.bids[idx].port = msg->sender_port;
-        current_auction.bids[idx].cost = msg->cost;
+        int i = current_auction.received_count++;
+        current_auction.bids[i].port = msg->sender_port;
+        current_auction.bids[i].cost = msg->cost;
         
-        // Controlla se abbiamo finito
         if(current_auction.received_count >= current_auction.expected_count) {
             check_auction_result();
         }
@@ -86,18 +83,16 @@ void check_auction_result() {
     int min_cost = current_auction.my_cost;
     int winner = my_port;
     
-    // Trova il vincitore
     for(int i=0; i<current_auction.received_count; i++) {
-        int other_cost = current_auction.bids[i].cost;
-        int other_port = current_auction.bids[i].port;
+        int next_cost = current_auction.bids[i].cost;
+        int next_port = current_auction.bids[i].port;
         
-        if(other_cost < min_cost) {
-            min_cost = other_cost;
-            winner = other_port;
-        } else if (other_cost == min_cost) {
-            // spareggio su porta minore
-            if(other_port < winner) {
-                winner = other_port;
+        if(next_cost < min_cost) {
+            min_cost = next_cost;
+            winner = next_port;
+        } else if (next_cost == min_cost) {
+            if(next_port < winner) {
+                winner = next_port;
             }
         }
     }
@@ -107,19 +102,17 @@ void check_auction_result() {
     if(winner == my_port) {
         printf("\n[WIN] Ho vinto l'asta per la card %d! (Costo: %d)\n", current_auction.card_id, min_cost);
         
-        //Notifica Presa in carico
         Message ack = {0};
         ack.type = CMD_ACK_CARD;
         ack.sender_port = my_port;
         ack.card_id = current_auction.card_id;
         send_to_server(&ack);
         
-        //Esegui lavoro
         printf("[WORK] Esecuzione task in corso...\n");
-        sleep(5); // Simulazione lavoro
+        sleep(5);
         
-        //Notifica Completamento
-        Message done = {0};
+        Message done;
+        memset(&done, 0, sizeof(Message));
         done.type = CMD_CARD_DONE;
         done.sender_port = my_port;
         done.card_id = current_auction.card_id;
@@ -134,20 +127,29 @@ void check_auction_result() {
 void handle_stdin() {
     char buffer[256];
     if(read(STDIN_FILENO, buffer, sizeof(buffer)) > 0) {
-        char* tok = strtok(buffer, " ");
+        buffer[strcspn(buffer, "\n")] = 0;
+        int buffer_len = strlen(buffer);
 
-        if(strncmp(tok, "quit", strlen(tok)) == 0) exit(0);
-        if(strncmp(tok, "create", strlen(tok)) == 0){
-            tok = strtok(buffer, "\n");
+        if(strncmp(buffer, "quit", buffer_len) == 0){
+            Message quit_msg;
+            memset(&quit_msg, 0, sizeof(Message));
+            quit_msg.type = CMD_QUIT;
+            quit_msg.sender_port = my_port;
+            send_to_server(&quit_msg);
+            printf("[INFO] Disconnessione...\n");
+            sleep(1);
+            exit(0);
+        }
+        if(strncmp(buffer, "create", buffer_len) == 0){
             Message msg;
             memset(&msg, 0, sizeof(msg));
             msg.type = CMD_CREATE_CARD;
-            strncpy(msg.text, tok);
+            strncpy(msg.text, buffer + strlen("create"), buffer_len);
             msg.sender_port = my_port;
             send_to_server(&msg);
             printf("[CREATE]: inviata card ta creare\n");
         } 
-        if(strncmp(tok, "help", strlen(tok)) == 0) print_help();
+        if(strncmp(buffer, "help", buffer_len) == 0) print_help();
     }
 }
 
@@ -163,9 +165,8 @@ void send_hello() {
 }
 
 void print_help() {
-    printf("  quit              - Esci dal programma\n");
+    printf("\n  quit              - Esci dal programma\n");
     printf("  create <testo>    - Crea una nuova card\n");
-    printf("  status            - Mostra stato corrente\n");
     printf("  help              - Mostra questo messaggio\n");
     printf("\n");
 }

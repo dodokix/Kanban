@@ -16,7 +16,7 @@
 
 
 
-int main(int argc, char*argv[]){
+int main(){
     printf("===========================================\n");
     printf("                 LAVAGNA                   \n");
     printf("===========================================\n\n");
@@ -29,16 +29,22 @@ int main(int argc, char*argv[]){
     }
 
     printf("[SERVER]: Configurazione andata a buon fine.\n");
+    
+    printf("[SERVER]: server pronto\n");
 
     time_t last_ping_check = time(NULL);
+    Message msg;
+    int sender_fd;
 
     while(1){
         check_net();
 
-        Message msg;
-        while(get_message_from_net(&msg)){
-            printf("[RICEVUTO da FD %d]: %s\n",event.port, event.buffer);
-            handle_command(&msg);
+
+        while((sender_fd = get_message_from_net(&msg)) != -1){
+            if(sender_fd != STDIN_FILENO){
+                printf("[%d]: %s\n",msg.sender_port, command_to_string(msg.type));
+            }
+            handle_command(&msg, sender_fd);
         }
 
         time_t now = time(NULL);

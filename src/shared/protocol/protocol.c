@@ -54,7 +54,7 @@ CardStatus string_to_column(const char* str) {
 }
 
 /* Serializzazione messaggio in formato testuale
- * Formato: COMANDO|sender_port|card_id|user_port|cost|num_users|user_list|text|column\n
+ * Formato: COMANDO|sender_port|card_id|cost|num_users|user_list|text|column\n
  * I campi non utilizzati vengono settati a valori di default (0 o stringa vuota)
  */
 int serialize_message(const Message* msg, char* buffer, int buffer_size) {
@@ -70,13 +70,12 @@ int serialize_message(const Message* msg, char* buffer, int buffer_size) {
         }
     }
     
-    // Costruiscoil messaggio
+    // Costruisco il messaggio
     int len = snprintf(buffer, buffer_size, 
-                      "%s|%d|%d|%d|%d|%d|%s|%s|%s\n",
+                      "%s|%d|%d|%d|%d|%s|%s|%s\n",
                       command_to_string(msg->type),
                       msg->sender_port,
                       msg->card_id,
-                      msg->user_port,
                       msg->cost,
                       msg->num_users,
                       user_list_str,
@@ -100,11 +99,10 @@ int deserialize_message(const char* buffer, Message* msg) {
     memset(msg, 0, sizeof(Message));
     
     // Parse del messaggio
-    int parsed = sscanf(buffer, "%31[^|]|%d|%d|%d|%d|%d|%511[^|]|%255[^|]|%15[^\n]",
+    int parsed = sscanf(buffer, "%31[^|]|%d|%d|%d|%d|%511[^|]|%255[^|]|%15[^\n]",
                        cmd_str,
                        &msg->sender_port,
                        &msg->card_id,
-                       &msg->user_port,
                        &msg->cost,
                        &msg->num_users,
                        user_list_str,
@@ -121,9 +119,8 @@ int deserialize_message(const char* buffer, Message* msg) {
     // Parse della lista utenti
     if(msg->num_users > 0 && strlen(user_list_str) > 0) {
         char* token = strtok(user_list_str, ",");
-        int i = 0;
-        while(token != NULL && i < MAX_USERS) {
-            msg->user_list[i++] = atoi(token);
+        for(int i = 0; i < MAX_USERS && token != NULL; ++i){
+            msg->user_list[i] = atoi(token);
             token = strtok(NULL, ",");
         }
     }

@@ -12,6 +12,7 @@ typedef enum {
 
 /* Definizione tipi di comando */
 typedef enum {
+    CMD_CONSOLE,            // Comando da terminale del server
     CMD_HELLO,              // Registrazione utente
     CMD_QUIT,               // Disconnessione utente
     CMD_CREATE_CARD,        // Creazione nuova card

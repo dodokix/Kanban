@@ -11,9 +11,7 @@
 int server_setup();
 int check_net();
 void close_net();
-/*
-get_command_from_net estrae una riga inviata al server.
-*/
-int get_command_from_net(Message* msg);
+int get_message_from_net(Message* msg);
+int send_to_client(Message* msg, int client_fd);
 
 #endif
