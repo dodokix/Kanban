@@ -6,7 +6,6 @@
 #include "../core/core.h"
 #include "../constants/net_constants.h"
 #include "../constants/core_constants.h"
-#include "../core/core.h"
 
 typedef struct {
     CommandType type;
@@ -29,6 +28,7 @@ typedef struct{
 
 const char* command_to_string(CommandType cmd);
 CommandType string_to_command(const char* str);
+
 const char* column_to_string(CardStatus col);
 CardStatus string_to_column(const char* str);
 

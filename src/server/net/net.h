@@ -1,11 +1,12 @@
 #ifndef SERVER_NET_H
 #define SERVER_NET_H
 
-#define CMD_BUFF_SIZE 1024
 #include <stdint.h>
 #include "../../shared/core/core.h"
 #include "../../shared/protocol/protocol.h"
+#include "../../shared/constants/net_constants.h"
 
+#define CMD_BUFF_SIZE 1024
 
 
 int server_setup();

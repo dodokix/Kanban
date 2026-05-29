@@ -21,7 +21,7 @@ int main(){
     printf("                 LAVAGNA                   \n");
     printf("===========================================\n\n");
 
-    initialize_lavagna();
+    
 
     if (server_setup() != 0){
         printf("[ERROR]: errore nella configurazione del server\n");

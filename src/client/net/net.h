@@ -2,6 +2,7 @@
 #define CLIENT_NET_H
 
 #include "../../shared/protocol/protocol.h"
+#include "../../shared/constants/net_constants.h"
 
 typedef struct {
     int port;
@@ -27,5 +28,6 @@ void close_peer_connection(int peer_port);
 
 int receive_message(Message* msg, int socket_fd);
 int get_peer_socket(int peer_port);
+void update_peer_port(int socket_fd, int port);
 
 #endif

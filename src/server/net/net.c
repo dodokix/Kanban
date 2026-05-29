@@ -15,7 +15,7 @@
 #include <stdbool.h>
 #include "../../shared/constants/net_constants.h"
 #include "../../shared/constants/core_constants.h"
-#include "../../shared/core/core.h"
+#include "../../shared/protocol/protocol.h"
 
 #define STDIN 0
 
@@ -48,7 +48,7 @@ int configure_port(){
     int addrlen = sizeof(address);
 
     if((sockfd = socket(AF_INET, SOCK_STREAM, 0)) == 0){
-        perror("Socket failed!");
+        perror("[NET] socket");
         return -1;
     }
 
@@ -58,14 +58,14 @@ int configure_port(){
     inet_pton(AF_INET, SERVER_ADDRESS, &address.sin_addr);
 
     if((bind(sockfd, (struct sockaddr*)&address, addrlen)) < 0 ){
-        perror("Bind failed!");
+        perror("[NET] binmd");
         close(sockfd);
         return -1;
     }
 
     
     if((listen(sockfd, BACKLOG)) < 0){
-        perror("Listen failed!");
+        perror("[NET] listen");
         close(sockfd);
         return -1;
     }
@@ -75,9 +75,10 @@ int configure_port(){
 }
 
 int server_setup(){
+    memset(clients_arr, 0, sizeof(clients_arr));
 
     if(configure_port() != 0){
-        printf("inizializzazione del socket fallita\n");
+        printf("[NET] inizializzazione del socket fallita\n");
         exit(-1);
     }
 
@@ -91,16 +92,20 @@ int server_setup(){
 
 void add_client(int socket, uint16_t port){
      for(int i = 0; i < MAX_CLIENTS; ++i){
-        if(clients_arr[i].active && clients_arr[i].socket == 0){
+        if(!clients_arr[i].active){
             clients_arr[i].socket = socket;
             clients_arr[i].port = port;
             clients_arr[i].active = true;
-            printf("[NET]: aggiungo nuovo client alla lista,\n");
+            clients_arr[i].nbyte = 0;
             FD_SET(socket, &masterfds);
             maxfd = (socket > maxfd) ? socket : maxfd;
-            break;
+
+            printf("[NET]: nuovo utente connesso\n socket: %d\n porta:%d\n", socket, port);
+            return;
         }
     }
+    printf("[WARN] Troppi client: connessione rifiutata\n");
+    close(socket);
 }
 
 void remove_client(client* client){
@@ -114,9 +119,13 @@ void remove_client(client* client){
     FD_CLR(socket, &masterfds);
     close(socket);
     
-    int i;
-    for(i = maxfd; i >= 0 && !FD_ISSET(i, &masterfds); --i);
-    maxfd = i;
+    int new_max = sockfd;
+    for(int i = 0; i < MAX_CLIENTS; i++) {
+        if(clients_arr[i].active && clients_arr[i].socket > new_max)
+            new_max = clients_arr[i].socket;
+    }
+    maxfd = new_max;
+
 }
 
 void new_connection(){
@@ -125,7 +134,7 @@ void new_connection(){
 
     int client_socket = accept(sockfd, (struct sockaddr*)&client_addr, &client_length);
     if(client_socket < 0){
-        printf("[ERROR]: errore nell'accept!\n");
+        printf("[NET] errore nell'accept!\n");
         return;
     }
     add_client(client_socket, ntohs(client_addr.sin_port));
@@ -144,17 +153,14 @@ int read_stdin(){
     char* buff_pt = cmd_interface.buff + cmd_interface.n_byte;
     int n = read(cmd_interface.socket, buff_pt, space_left);
 
-    if(n <= 0){
-        return n;
-    }
-
-    cmd_interface.n_byte += n;
-    return 0;
+    if(n > 0)
+        cmd_interface.n_byte += n;
+    return n;
 }
 
 client* find_client_by_socket(int fd){
     for(int i = 0; i < MAX_CLIENTS; ++i){
-        if(clients_arr[i].socket == fd && clients_arr[i].active){
+        if( clients_arr[i].active && clients_arr[i].socket == fd ){
             return &clients_arr[i];
         }
     }
@@ -180,14 +186,14 @@ int read_client(int fd){
     int space_left = CMD_BUFF_SIZE - 1 - sender->n_byte;
 
     if(space_left == 0){
-        printf("[ERROR]: buffer dei comandi pieno\n");
+        printf("[WARN]: buffer dei comandi pieno\n");
         return 0;
     }
     char* buff_pt = sender->buff + sender->n_byte;
     int n = recv(fd, buff_pt, space_left, 0);
 
     if(n < 0){
-        perror("[ERROR]: recv fallita\n");
+        perror("[NET]: recv fallita\n");
         return n;
     }
     else if(n == 0){
@@ -211,7 +217,7 @@ int check_net(){
 
     int activity = select(maxfd + 1, &readfds, NULL, NULL, &tv);
     if(activity < 0){
-        perror("Errore nella select\n");
+        perror("[NET] select");
         return 0;
     }
     
@@ -223,7 +229,7 @@ int check_net(){
             new_connection();
         }
         
-    for(int i = 0; i <= MAX_CLIENTS; ++i){
+    for(int i = 0; i < MAX_CLIENTS; ++i){
         int socket = clients_arr[i].socket;
         if(socket > 0 && clients_arr[i].active && FD_ISSET(socket, &readfds)){
             read_client(socket);
@@ -245,29 +251,27 @@ void remove_cmd_from_buffer(client* c, int cmd_length){
 int extract_line_from_buffer(client* c, char* dest_buffer, int max_length){
     if(c->n_byte == 0) return 0;
 
-    int cmd_len;
+    int cmd_len = -1;
     bool found = false;
     for(int i = 0; i < c->n_byte; ++i){
         if(c->buff[i] == '\n'){
             cmd_len = i;
-            found = true;
-            c->buff[i] = '\0';
             break;
         }
     }
 
-    if(found){
-        if(cmd_len > max_length || cmd_len == 0){
-            printf("comando non valido troppo lungo o vuoto \n");
-            remove_cmd_from_buffer(c, cmd_len);
-            return -1;
-        }
-        
-        memcpy(dest_buffer, c->buff, cmd_len);
-        dest_buffer[cmd_len] = '\0';
+    if(cmd_len < 0) return 0;
+
+    if(cmd_len == 0 || cmd_len > max_length) {
         remove_cmd_from_buffer(c, cmd_len);
-        return cmd_len;
+        return -1;
     }
+        
+    memcpy(dest_buffer, c->buff, cmd_len);
+    dest_buffer[cmd_len] = '\0';
+    remove_cmd_from_buffer(c, cmd_len);
+    return cmd_len;
+
 
     return 0;
 }
@@ -278,6 +282,7 @@ int get_message_from_net(Message* msg){
 
     char tmp[CMD_BUFF_SIZE];
     int cmd_len;
+
     if((cmd_len = extract_line_from_buffer(&cmd_interface, tmp, CMD_BUFF_SIZE)) > 0){
         msg->type = CMD_CONSOLE;
         strncpy(msg->text, tmp, cmd_len);
@@ -321,7 +326,7 @@ int send_to_client(Message* msg, int client_fd){
     }
 
     if(send(client_fd, buffer, len, 0) < 0){
-        perror("[ERROR]: send fallita\n");
+        perror("[NET]: send\n");
         return 0;
     }
 
