@@ -90,7 +90,7 @@ int serialize_message(const Message* msg, char* buffer, int buffer_size) {
 }
 
 /* Deserializzazione messaggio da formato testuale */
-/* Deserializzazione messaggio da formato testuale (Risolto bug campi vuoti) */
+/* Deserializzazione messaggio da formato testuale */
 int deserialize_message(const char* buffer, Message* msg) {
     char cmd_str[32] = "";
     char user_list_str[512] = "";

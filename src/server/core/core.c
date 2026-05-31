@@ -18,6 +18,7 @@ void initialize_lavagna() {
     lav.id_lavagna = 1;
     lav.num_utenti = 0;
     lav.num_cards = 0;
+    lav.card_in_asta = 0;
     
     for(int i = 0; i < MAX_CARDS; i++) {
         lav.cards[i] = NULL;
@@ -27,6 +28,7 @@ void initialize_lavagna() {
         lav.lista_utenti[i].socket_fd = -1;
         lav.lista_utenti[i].port = 0;
         lav.lista_utenti[i].attivo = false;
+        lav.lista_utenti[i].occupato= false;
         lav.lista_utenti[i].last_pong = 0;
         lav.lista_utenti[i].ping_sent = 0;
     }
@@ -276,12 +278,12 @@ void handle_console(Message* msg){
         show_lavagna();
         check_and_send_available_cards();
     }
-    if(strncmp(msg->text, "quit", strlen("quit")) == 0){
+    else if(strncmp(msg->text, "quit", strlen("quit")) == 0){
         close_net();
         exit(0);
     } 
-    if(strncmp(msg->text, "show", strlen("show")) == 0) show_lavagna();
-    if(strncmp(msg->text, "help", strlen("help")) == 0) show_help();
+    else if(strncmp(msg->text, "show", strlen("show")) == 0) show_lavagna();
+    else if(strncmp(msg->text, "help", strlen("help")) == 0) show_help();
     else{
         printf("[WARN] Comando constole non riconosciuto: '%s'\n", msg->text);
     }
@@ -328,6 +330,7 @@ void handle_quit(Message* msg){
     }
 
     u->attivo = false;
+    u->occupato = false;
     u->socket_fd = -1;
     lav.num_utenti--;
     printf("[QUIT] Utente %d disconnesso.\n", msg->sender_port);
@@ -356,7 +359,14 @@ void handle_ack_card(Message* msg){
     Card* c = get_card_by_id(msg->card_id);
     if(c && c->column == COL_TODO) {
         c->user_port = msg->sender_port;
+        lav.card_in_asta = 0;
         move_card(c->id, COL_DOING);
+
+        Utente* u = find_utente_by_port(msg->sender_port);
+        if(u) {
+            u->occupato = true;
+            printf("[INFO] Utente %d ora occupato su card %d\n", msg->sender_port, msg->card_id);
+        }
     }
 }
 
@@ -365,8 +375,12 @@ void handle_card_done(Message* msg) {
     Card* c = get_card_by_id(msg->card_id);
     if(c && c->column == COL_DOING && c->user_port == msg->sender_port) {
         move_card(c->id, COL_DONE);
-        printf("[CARD_DONE] Utente %d completa card %d\n", msg->sender_port, msg->card_id);
-        check_and_send_available_cards(); // Proponi la prossima
+
+        Utente* u = find_utente_by_port(msg->sender_port);
+        if(u){
+            printf("[CARD_DONE] Utente %d completa card %d\n", msg->sender_port, msg->card_id);
+        }
+        check_and_send_available_cards();
     }
     else{
         printf("[WARN] CARD_DONE ignorato: card %d non in DOING o utente errato\n",
@@ -397,16 +411,21 @@ void broadcast_available_cards(){
         return;
     }
 
-    int user_ports[MAX_USERS];
-    int num_users = get_active_users_list(user_ports);
+    int free_ports[MAX_USERS];
+    int n_free = 0;
+    for(int i = 0; i < MAX_USERS; ++i){
+        if(lav.lista_utenti[i].attivo && !lav.lista_utenti[i].occupato)
+        free_ports[n_free++] = lav.lista_utenti[i].port;
+    }
 
-    if(num_users < 2){
+    if(n_free < 2){
+        printf("[INFO] Utenti liberi insufficienti (%d) per avviare un'asta. \n", n_free);
         return;
     }
 
-    printf("\n[AVAILABLE CARD] Invio card %d a %d utenti\n", card->id, num_users);
+    printf("\n[AVAILABLE CARD] Invio card %d a %d utenti\n", card->id, n_free);
 
-    for(int i = 0; i < num_users; ++i){
+    for(int i = 0; i < n_free; ++i){
         Utente* utente = find_utente_by_port(user_ports[i]);
         if(!utente) continue;
 
@@ -419,11 +438,11 @@ void broadcast_available_cards(){
         strncpy(msg.text, card->text, MAX_TEXT_LEN - 1);
         
         int k = 0;
-        for(int j = 0; j < num_users; ++j){
-            if(user_ports[j] != user_ports[i])
-                msg.user_list[k++] = user_ports[j];
+        for(int j = 0; j < n_free; ++j){
+            if(free_ports[j] != free_ports[i])
+                msg.user_list[k++] = free_ports[j];
         }
-        msg.num_users = k;
+        msg.n_free = k;
 
         send_to_client(&msg, utente->socket_fd);
     }
@@ -431,19 +450,15 @@ void broadcast_available_cards(){
 
 
 void check_and_send_available_cards() {
-    //Se utenti >= 2, invia la prima card TODO
     if(lav.num_utenti < 2) return;
+    if(lav.card_in_asta != 0) return;
 
-    bool has_todo = false;
     for(int i=0; i<lav.num_cards; i++) {
         if(lav.cards[i] && lav.cards[i]->column == COL_TODO) {
-            has_todo = true;
+            lav.card_in_asta = lav.cards[i]->id;
+            broadcast_available_cards();
             break;
         }
-    }
-    
-    if(has_todo) {
-        broadcast_available_cards();
     }
 }
 

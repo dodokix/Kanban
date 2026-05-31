@@ -13,6 +13,7 @@ typedef struct {
     int socket_fd;
     int port;
     bool attivo;
+    bool occupato;
     time_t last_pong;
     time_t ping_sent;
 } Utente;
@@ -24,6 +25,7 @@ typedef struct {
     int num_utenti;
     Card* cards[MAX_CARDS];
     int num_cards;
+    int card_in_asta;
 } Lavagna;
 
 extern Lavagna lav;
