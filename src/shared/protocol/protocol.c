@@ -90,38 +90,67 @@ int serialize_message(const Message* msg, char* buffer, int buffer_size) {
 }
 
 /* Deserializzazione messaggio da formato testuale */
+/* Deserializzazione messaggio da formato testuale (Risolto bug campi vuoti) */
 int deserialize_message(const char* buffer, Message* msg) {
-    char cmd_str[32];
-    char user_list_str[512];
-    char col_str[16];
+    char cmd_str[32] = "";
+    char user_list_str[512] = "";
+    char col_str[16] = "";
     
-    // Inizializza struttura
+    // Inizializza struttura a zero
     memset(msg, 0, sizeof(Message));
     
-    // Parse del messaggio
-    int parsed = sscanf(buffer, "%31[^|]|%d|%d|%d|%d|%511[^|]|%255[^|]|%15[^\n]",
-                       cmd_str,
-                       &msg->sender_port,
-                       &msg->card_id,
-                       &msg->cost,
-                       &msg->num_users,
-                       user_list_str,
-                       msg->text,
-                       col_str);
+    // Creiamo una copia del buffer per poterlo "spezzare" in sicurezza
+    char temp_buffer[1024];
+    strncpy(temp_buffer, buffer, sizeof(temp_buffer) - 1);
+    temp_buffer[sizeof(temp_buffer) - 1] = '\0';
     
-    if(parsed < 1) {
-        return -1; // Errore nel parsing
+    // Rimuove il \n finale se presente
+    char *newline = strchr(temp_buffer, '\n');
+    if (newline) {
+        *newline = '\0';
+    }
+    
+    char *ptr = temp_buffer;
+    char *token;
+    int field = 0;
+    
+    // Ciclo di parsing: cerchiamo il pipe '|' e separiamo i campi
+    while (ptr != NULL && field < 8) {
+        token = ptr;
+        ptr = strchr(ptr, '|'); 
+        if (ptr != NULL) {
+            *ptr = '\0'; // Inserisce un terminatore di stringa al posto del '|'
+            ptr++;       // Sposta il puntatore al carattere successivo
+        }
+        
+        // Assegna il token estratto al campo corrispondente
+        switch(field) {
+            case 0: strncpy(cmd_str, token, sizeof(cmd_str) - 1); break;
+            case 1: msg->sender_port = atoi(token); break;
+            case 2: msg->card_id = atoi(token); break;
+            case 3: msg->cost = atoi(token); break;
+            case 4: msg->num_users = atoi(token); break;
+            case 5: strncpy(user_list_str, token, sizeof(user_list_str) - 1); break;
+            case 6: strncpy(msg->text, token, sizeof(msg->text) - 1); break;
+            case 7: strncpy(col_str, token, sizeof(col_str) - 1); break;
+        }
+        field++;
+    }
+    
+    // Se non abbiamo letto tutti e 8 i campi, il pacchetto è malformato
+    if (field < 8) {
+        return -1; 
     }
     
     msg->type = string_to_command(cmd_str);
     msg->column = string_to_column(col_str);
     
-    // Parse della lista utenti
+    // Parse della lista utenti (rimasto invariato)
     if(msg->num_users > 0 && strlen(user_list_str) > 0) {
-        char* token = strtok(user_list_str, ",");
-        for(int i = 0; i < MAX_USERS && token != NULL; ++i){
-            msg->user_list[i] = atoi(token);
-            token = strtok(NULL, ",");
+        char* u_token = strtok(user_list_str, ",");
+        for(int i = 0; i < MAX_USERS && u_token != NULL; ++i){
+            msg->user_list[i] = atoi(u_token);
+            u_token = strtok(NULL, ",");
         }
     }
     

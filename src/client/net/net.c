@@ -51,6 +51,11 @@ int setup_p2p_socket(int myport){
         return -1;
     }
 
+    int opt = 1;
+    if (setsockopt(listen_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) < 0) {
+        perror("[NET] setsockopt");
+    }
+
     memset(&client_addr, 0, sizeof(client_addr));
     client_addr.sin_family = AF_INET;
     client_addr.sin_addr.s_addr = INADDR_ANY;
@@ -92,10 +97,10 @@ int client_setup(int port){
 }
 
 int send_to_server(Message* msg) {
-    char buffer[CMD_BUFFER_SIZE];
+    char buffer[CMD_BUFF_SIZE];
     int len;
     
-    len = serialize_message(msg, buffer, CMD_BUFFER_SIZE);
+    len = serialize_message(msg, buffer, CMD_BUFF_SIZE);
     if(len < 0) {
         printf("[ERROR] Errore nella serializzazione del messaggio\n");
         return -1;
@@ -110,7 +115,7 @@ int send_to_server(Message* msg) {
 }
 
 int send_to_peer(Message* msg, int peer_port) {
-    char buffer[CMD_BUFFER_SIZE];
+    char buffer[CMD_BUFF_SIZE];
     int peer_socket;
     
     peer_socket = get_peer_socket(peer_port);
@@ -123,7 +128,7 @@ int send_to_peer(Message* msg, int peer_port) {
         }
     }
     
-    int len = serialize_message(msg, buffer, CMD_BUFFER_SIZE);
+    int len = serialize_message(msg, buffer, CMD_BUFF_SIZE);
     if(len < 0) {
         printf("[ERROR] Errore nella serializzazione del messaggio\n");
         return -1;
@@ -157,12 +162,7 @@ int connect_to_peer(int peer_port) {
         return -1;
     }
 
-    char buffer[512];
-    
-    
-    
-    int sock;
-    sock = socket(AF_INET, SOCK_STREAM, 0);
+    int sock = socket(AF_INET, SOCK_STREAM, 0);
     if(sock < 0) {
         perror("[NET] socket peer");
         return -1;
@@ -242,9 +242,9 @@ void close_peer_connection(int peer_port) {
 
 
 int receive_message(Message* msg, int socket_fd) {
-    char buffer[CMD_BUFFER_SIZE];
+    char buffer[CMD_BUFF_SIZE];
     
-    int bytes_read = recv(socket_fd, buffer, CMD_BUFFER_SIZE - 1, 0);
+    int bytes_read = recv(socket_fd, buffer, CMD_BUFF_SIZE - 1, 0);
     if(bytes_read < 0) {
         perror("[NET] recv");
         return -1;
@@ -290,4 +290,14 @@ int get_peer_socket(int peer_port) {
     }
     return -1;
 }
+
+void update_peer_port(int socket_fd, int port) {
+    for(int i = 0; i < num_peers; i++) {
+        if(peers[i].socket == socket_fd && peers[i].port == 0) {
+            peers[i].port = port;
+            return;
+        }
+    }
+}
+
 

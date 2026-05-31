@@ -28,6 +28,8 @@ int main(){
         exit(-1);
     }
 
+    initialize_lavagna();
+
     printf("[SERVER]: Configurazione andata a buon fine.\n");
     
     printf("[SERVER]: server pronto\n");

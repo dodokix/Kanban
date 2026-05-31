@@ -33,7 +33,6 @@ void handle_server_message(Message* msg) {
             current_auction.expected_count = msg->num_users;
             current_auction.received_count = 0;
             
-            srand(time(NULL));
             current_auction.my_cost = rand();
             printf("[ASTA] Il mio costo: %d.", current_auction.my_cost);
 
@@ -61,7 +60,7 @@ void handle_server_message(Message* msg) {
         case CMD_PING_USER: {
             printf("[PING] Ricevuto ping dalla lavagna per card %d\n", msg->card_id);
             Message pong;
-            memeset(&pong, 0, sizeof(Message));
+            memset(&pong, 0, sizeof(Message));
             pong.type = CMD_PONG_LAVAGNA;
             pong.sender_port = my_port;
             pong.card_id = msg->card_id;
@@ -78,20 +77,22 @@ void handle_server_message(Message* msg) {
 void handle_peer_message(Message* msg, int peer_sock) {
     if(msg->type != CMD_CHOOSE_USER) return;
     
-    update_peer_port(peer_socket_fd, msg->sender_port);
+    update_peer_port(peer_sock, msg->sender_port);
 
-        if(!current_auction.active || msg->card_id != current_auction.card_id)
-            return;
-        
-        printf("[ASTA] Ricevuto costo %d dal peer %d\n", msg->cost, msg->sender_port);
-        
-        int i = current_auction.received_count++;
-        current_auction.bids[i].port = msg->sender_port;
-        current_auction.bids[i].cost = msg->cost;
-        
-        if(current_auction.received_count >= current_auction.expected_count) {
-            check_auction_result();
-        }
+    if(!current_auction.active || msg->card_id != current_auction.card_id)
+        return;
+
+    if(current_auction.received_count >= MAX_USERS)
+        return;
+    
+    printf("[ASTA] Ricevuto costo %d dal peer %d\n", msg->cost, msg->sender_port);
+    
+    int i = current_auction.received_count++;
+    current_auction.bids[i].port = msg->sender_port;
+    current_auction.bids[i].cost = msg->cost;
+    
+    if(current_auction.received_count >= current_auction.expected_count) {
+        check_auction_result();
     }
 }
 

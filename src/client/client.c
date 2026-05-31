@@ -2,6 +2,8 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <string.h>
+#include <sys/select.h>
+#include <sys/time.h>
 #include "net/net.h"
 #include "core/core.h"
 
@@ -9,6 +11,8 @@
 
 
 int main(int argc, char *argv[]){
+    srand(time(NULL));
+
     if(argc < 2){
         printf("uso: %s <porta>\n", argv[0]);
         exit(-1);

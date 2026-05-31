@@ -51,14 +51,14 @@ int configure_port(){
         perror("[NET] socket");
         return -1;
     }
-
+  
     memset(&address, 0, addrlen);
     address.sin_family = AF_INET;
     address.sin_port = htons(SERVER_PORT);
     inet_pton(AF_INET, SERVER_ADDRESS, &address.sin_addr);
 
     if((bind(sockfd, (struct sockaddr*)&address, addrlen)) < 0 ){
-        perror("[NET] binmd");
+        perror("[NET] bind");
         close(sockfd);
         return -1;
     }
@@ -96,11 +96,10 @@ void add_client(int socket, uint16_t port){
             clients_arr[i].socket = socket;
             clients_arr[i].port = port;
             clients_arr[i].active = true;
-            clients_arr[i].nbyte = 0;
+            clients_arr[i].n_byte = 0;
             FD_SET(socket, &masterfds);
             maxfd = (socket > maxfd) ? socket : maxfd;
 
-            printf("[NET]: nuovo utente connesso\n socket: %d\n porta:%d\n", socket, port);
             return;
         }
     }
@@ -252,7 +251,6 @@ int extract_line_from_buffer(client* c, char* dest_buffer, int max_length){
     if(c->n_byte == 0) return 0;
 
     int cmd_len = -1;
-    bool found = false;
     for(int i = 0; i < c->n_byte; ++i){
         if(c->buff[i] == '\n'){
             cmd_len = i;

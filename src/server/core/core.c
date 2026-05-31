@@ -292,7 +292,6 @@ void handle_hello(Message* msg, int socket_fd) {
     // Verifica se l'utente è già registrato
     if(find_utente_by_port(msg->sender_port)) {
         printf("[WARN] Utente %d già registrato\n", msg->sender_port);
-        send_to_client(msg->socket_fd, "ERR_ALREADY_REGISTERED\n", 24);
         return;
     }
     
@@ -306,13 +305,12 @@ void handle_hello(Message* msg, int socket_fd) {
             lav.lista_utenti[i].ping_sent = 0;
             lav.num_utenti++;
             
-            printf("[HELLO] Utente registrato: Porta %d, Totale utenti: %d\n", 
-                   msg->sender_port, lav.num_utenti);
+            printf("[HELLO] Utente registrato, totale utenti: %d\n", lav.num_utenti);
             
             Message ack;
             memset(&ack, 0, sizeof(Message));
             ack.type = CMD_HELLO;
-            strcpy(ack.text, "ACK", sizeof(ack.text)-1);
+            strncpy(ack.text, "ACK", sizeof(ack.text)-1);
             send_to_client(&ack, socket_fd);
             
             // Verifica se possiamo iniziare ad assegnare card
