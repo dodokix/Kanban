@@ -23,6 +23,7 @@ typedef struct {
     int id_lavagna;
     Utente lista_utenti[MAX_CLIENTS];
     int num_utenti;
+    int n_free;
     Card* cards[MAX_CARDS];
     int num_cards;
     int card_in_asta;

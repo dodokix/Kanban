@@ -142,15 +142,6 @@ int send_to_peer(Message* msg, int peer_port) {
     return 0;
 }
 
-int broadcast_to_peers(Message* msg, int* peer_list, int num_peers_list) {
-    for(int i = 0; i < num_peers_list; i++) {
-        if(peer_list[i] != my_port) {
-            send_to_peer(msg, peer_list[i]);
-        }
-    }
-    return 0;
-}
-
 int connect_to_peer(int peer_port) {
 
     if(get_peer_socket(peer_port) >= 0) {

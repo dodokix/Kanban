@@ -26,15 +26,15 @@ AuctionState current_auction = {0};
 void handle_server_message(Message* msg) {
     switch(msg->type) {
         case CMD_AVAILABLE_CARD: {
-            printf("\n[ASTA] Nuova card disponibile: ID %d - '%s'\n", msg->card_id, msg->text);
             
+            printf("\n[ASTA] Nuova card disponibile: ID %d - '%s'\n", msg->card_id, msg->text);
             current_auction.active = true;
             current_auction.card_id = msg->card_id;
             current_auction.expected_count = msg->num_users;
             current_auction.received_count = 0;
             
             current_auction.my_cost = rand();
-            printf("[ASTA] Il mio costo: %d.", current_auction.my_cost);
+            printf("[ASTA] Il mio costo: %d.\n", current_auction.my_cost);
 
             Message bid_msg;
             memset(&bid_msg, 0, sizeof(Message));
@@ -44,6 +44,10 @@ void handle_server_message(Message* msg) {
             bid_msg.card_id = msg->card_id;
 
             for(int i=0; i < msg->num_users; i++) {
+                if(msg->user_list[i] <= 0){
+                    printf("[DEBUG] ignorato peer con portta non valida: %d\n",msg->user_list[i]);
+                    continue;
+                }
                 send_to_peer(&bid_msg, msg->user_list[i]);
             }
             
@@ -67,6 +71,11 @@ void handle_server_message(Message* msg) {
             send_to_server(&pong);
             printf("[PONG] inviato pong alla lavagnan\n");
             break;
+        }
+
+        case CMD_QUIT: {
+                printf("[QUIT] Il server ha rifiutato la connessione: %s \n", msg->text);
+                break;
         }
             
         default:

@@ -30,6 +30,7 @@ typedef struct {
 } client;
 
 client clients_arr[MAX_CLIENTS] = {0};
+int connected_clients = 0;
 
 client cmd_interface = {
     .socket = STDIN_FILENO,
@@ -124,7 +125,6 @@ void remove_client(client* client){
             new_max = clients_arr[i].socket;
     }
     maxfd = new_max;
-
 }
 
 void new_connection(){
@@ -136,11 +136,16 @@ void new_connection(){
         printf("[NET] errore nell'accept!\n");
         return;
     }
+
+    if(connected_clients >= MAX_CLIENTS){
+        printf("[WARN] Raggiunto limite di %d client, una connessione e' stat rifiutata", MAX_CLIENTS);
+        close(client_socket);
+        return;
+    }
+    
     add_client(client_socket, ntohs(client_addr.sin_port));
 }
 
-
-//
 int read_stdin(){
 
     int space_left = CMD_BUFF_SIZE - 1 - cmd_interface.n_byte;
@@ -301,6 +306,7 @@ int get_message_from_net(Message* msg){
 
 void close_net(){
     if(sockfd > 0){
+        shutdown(sockfd, SHUT_RDWR);
         close(sockfd);
         sockfd = 0;
     }
@@ -310,8 +316,7 @@ void close_net(){
             close(clients_arr[i].socket);
         }
     }
-
-    printf("chiusura socket completata!\n");
+    printf("[NET] chiusura socket completata!\n");
 }
 
 int send_to_client(Message* msg, int client_fd){

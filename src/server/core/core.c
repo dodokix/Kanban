@@ -17,6 +17,7 @@ void initialize_lavagna() {
     
     lav.id_lavagna = 1;
     lav.num_utenti = 0;
+    lav.n_free = 0;
     lav.num_cards = 0;
     lav.card_in_asta = 0;
     
@@ -378,6 +379,7 @@ void handle_card_done(Message* msg) {
 
         Utente* u = find_utente_by_port(msg->sender_port);
         if(u){
+            u->occupato = false;
             printf("[CARD_DONE] Utente %d completa card %d\n", msg->sender_port, msg->card_id);
         }
         check_and_send_available_cards();
@@ -413,9 +415,11 @@ void broadcast_available_cards(){
 
     int free_ports[MAX_USERS];
     int n_free = 0;
+    
     for(int i = 0; i < MAX_USERS; ++i){
-        if(lav.lista_utenti[i].attivo && !lav.lista_utenti[i].occupato)
-        free_ports[n_free++] = lav.lista_utenti[i].port;
+        if(lav.lista_utenti[i].attivo && !lav.lista_utenti[i].occupato){
+            free_ports[n_free++] = lav.lista_utenti[i].port;
+        }
     }
 
     if(n_free < 2){
@@ -426,7 +430,7 @@ void broadcast_available_cards(){
     printf("\n[AVAILABLE CARD] Invio card %d a %d utenti\n", card->id, n_free);
 
     for(int i = 0; i < n_free; ++i){
-        Utente* utente = find_utente_by_port(user_ports[i]);
+        Utente* utente = find_utente_by_port(free_ports[i]);
         if(!utente) continue;
 
         Message msg;
@@ -442,7 +446,7 @@ void broadcast_available_cards(){
             if(free_ports[j] != free_ports[i])
                 msg.user_list[k++] = free_ports[j];
         }
-        msg.n_free = k;
+        msg.num_users = k;
 
         send_to_client(&msg, utente->socket_fd);
     }
@@ -462,6 +466,16 @@ void check_and_send_available_cards() {
     }
 }
 
+void close_client(Utente* u){
+    close(u->socket_fd);
+    u->attivo = false;
+    u->occupato = false;
+    u->port = 0;
+    u->socket_fd = -1;
+    u->ping_sent = 0;
+    lav.num_utenti--;
+}
+
 void check_ping_timeouts(){
     time_t now = time(NULL);
 
@@ -478,7 +492,12 @@ void check_ping_timeouts(){
                    "card %d rimessa in TODO\n", utente->port, card->id);
             card->column      = COL_TODO;
             card->user_port   = 0;
-            utente->ping_sent = 0;
+
+            close_client(utente);
+            
+            if(lav.num_utenti < 2)
+                lav.card_in_asta = 0;
+
             show_lavagna();
             check_and_send_available_cards();
             continue;
