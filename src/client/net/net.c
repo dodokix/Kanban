@@ -290,5 +290,3 @@ void update_peer_port(int socket_fd, int port) {
         }
     }
 }
-
-

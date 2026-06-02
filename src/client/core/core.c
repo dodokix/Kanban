@@ -18,6 +18,7 @@ typedef struct {
         int port;
         int cost;
     } bids[MAX_USERS];
+    int user_list[MAX_USERS];
     bool active;
 } AuctionState;
 
@@ -28,11 +29,28 @@ void handle_server_message(Message* msg) {
         case CMD_AVAILABLE_CARD: {
             
             printf("\n[ASTA] Nuova card disponibile: ID %d - '%s'\n", msg->card_id, msg->text);
-            current_auction.active = true;
+            current_auction.active = false;
             current_auction.card_id = msg->card_id;
             current_auction.expected_count = msg->num_users;
             current_auction.received_count = 0;
-            
+
+            for(int i = 0; i<msg->num_users; ++i){
+                current_auction.user_list[i] = msg->user_list[i];
+            }
+
+            Message ack_msg;
+            memset(&ack_msg, 0, sizeof(Message));
+            ack_msg.type = CMD_READY;
+            ack_msg.sender_port = my_port;
+            ack_msg.card_id = msg->card_id;
+            send_to_server(&ack_msg);
+            break;
+        }
+
+        case CMD_START_AUCTION: {
+            //if(current_auction.card_id != msg->card_id) break;
+
+            current_auction.active = true;
             current_auction.my_cost = rand();
             printf("[ASTA] Il mio costo: %d.\n", current_auction.my_cost);
 
@@ -43,17 +61,13 @@ void handle_server_message(Message* msg) {
             bid_msg.cost = current_auction.my_cost;
             bid_msg.card_id = msg->card_id;
 
-            for(int i=0; i < msg->num_users; i++) {
-                if(msg->user_list[i] <= 0){
+            for(int i=0; i < current_auction.expected_count; i++) {
+                if(current_auction.user_list[i] <= 0){
                     printf("[DEBUG] ignorato peer con portta non valida: %d\n",msg->user_list[i]);
                     continue;
                 }
                 send_to_peer(&bid_msg, msg->user_list[i]);
-            }
-            
-            if(msg->num_users == 0)
-                check_auction_result();
-            
+            }            
             break;
         }
         

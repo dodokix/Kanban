@@ -18,6 +18,13 @@ typedef struct {
     time_t ping_sent;
 } Utente;
 
+typedef struct{
+    int acks_received;
+    int partecipating_users;
+    int id;
+    bool active;
+}Server_AuctionState;
+
 /* Struttura lavagna */
 typedef struct {
     int id_lavagna;
@@ -27,6 +34,7 @@ typedef struct {
     Card* cards[MAX_CARDS];
     int num_cards;
     int card_in_asta;
+    Server_AuctionState auction;
 } Lavagna;
 
 extern Lavagna lav;
@@ -54,6 +62,7 @@ void handle_command(Message* event, int socket_fd);
 void handle_console(Message* msg);
 void handle_hello(Message* event, int socket_fd);
 void handle_quit(Message* event);
+void handle_ready(Message* event);
 void handle_create_card(Message* event);
 void handle_ack_card(Message* event);
 void handle_card_done(Message* event);

@@ -10,6 +10,13 @@
 Lavagna lav;
 static int next_card_id = 1;
 
+void init_auction(){
+    lav.auction.acks_received = 0;
+    lav.auction.partecipating_users = 0;
+    lav.auction.id = 0;
+    lav.auction.active = false;
+}
+
 void initialize_lavagna() {
     printf("\n========================================\n");
     printf("  INIZIALIZZAZIONE LAVAGNA KANBAN\n");
@@ -20,6 +27,7 @@ void initialize_lavagna() {
     lav.n_free = 0;
     lav.num_cards = 0;
     lav.card_in_asta = 0;
+    init_auction();
     
     for(int i = 0; i < MAX_CARDS; i++) {
         lav.cards[i] = NULL;
@@ -258,6 +266,9 @@ void handle_command(Message* msg, int socket_fd) {
         case CMD_ACK_CARD:
             handle_ack_card(msg);
             break;
+        case CMD_READY:
+            handle_ready(msg);
+            break;
         case CMD_CARD_DONE:
             handle_card_done(msg);
             break;
@@ -361,15 +372,38 @@ void handle_ack_card(Message* msg){
     if(c && c->column == COL_TODO) {
         c->user_port = msg->sender_port;
         lav.card_in_asta = 0;
+        
         move_card(c->id, COL_DOING);
-
+        
         Utente* u = find_utente_by_port(msg->sender_port);
         if(u) {
             u->occupato = true;
             printf("[INFO] Utente %d ora occupato su card %d\n", msg->sender_port, msg->card_id);
         }
+        init_auction();
     }
 }
+
+
+void handle_ready(Message* msg){
+    lav.auction.acks_received++;
+    printf("[AUCTION %d] Client %d ready. %d/%d\n", lav.auction.id, msg->sender_port, lav.auction.acks_received, lav.auction.partecipating_users);
+    
+    if(lav.auction.acks_received == lav.auction.partecipating_users){
+        printf("[AUCTION] all participants ready! go!\n");
+
+        Message start_msg;
+        memset(&start_msg, 0, sizeof(Message));
+        start_msg.type = CMD_START_AUCTION;
+        start_msg.card_id = msg->card_id;
+        
+        for(int i = 0; i<lav.num_utenti; ++i){
+            send_to_client(&start_msg, lav.lista_utenti[i].socket_fd);
+        }
+    }
+}
+
+
 
 void handle_card_done(Message* msg) {
     // Utente completa il task
@@ -460,6 +494,7 @@ void check_and_send_available_cards() {
     for(int i=0; i<lav.num_cards; i++) {
         if(lav.cards[i] && lav.cards[i]->column == COL_TODO) {
             lav.card_in_asta = lav.cards[i]->id;
+            lav.auction.partecipating_users = lav.num_utenti;
             broadcast_available_cards();
             break;
         }
@@ -499,22 +534,22 @@ void check_ping_timeouts(){
                 lav.card_in_asta = 0;
 
             show_lavagna();
-            check_and_send_available_cards();
             continue;
         }
-
+        
         if(utente->ping_sent == 0 &&
-           difftime(now, card->last_update) > PING_TIMEOUT) {
-            Message ping_msg;
-            memset(&ping_msg, 0, sizeof(Message));
-            ping_msg.type        = CMD_PING_USER;
-            ping_msg.sender_port = SERVER_PORT;
-            ping_msg.card_id     = card->id;
- 
-            send_to_client(&ping_msg, utente->socket_fd);
-            utente->ping_sent = now; 
-            printf("[PING] Inviato a utente %d per card %d\n",
-                   utente->port, card->id);
-        }
-    }
+            difftime(now, card->last_update) > PING_TIMEOUT) {
+                Message ping_msg;
+                memset(&ping_msg, 0, sizeof(Message));
+                ping_msg.type        = CMD_PING_USER;
+                ping_msg.sender_port = SERVER_PORT;
+                ping_msg.card_id     = card->id;
+                
+                send_to_client(&ping_msg, utente->socket_fd);
+                utente->ping_sent = now; 
+                printf("[PING] Inviato a utente %d per card %d\n",
+                    utente->port, card->id);
+                }
+            }
+        check_and_send_available_cards();
 }
