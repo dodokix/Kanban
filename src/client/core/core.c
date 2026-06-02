@@ -63,11 +63,11 @@ void handle_server_message(Message* msg) {
 
             for(int i=0; i < current_auction.expected_count; i++) {
                 if(current_auction.user_list[i] <= 0){
-                    printf("[DEBUG] ignorato peer con portta non valida: %d\n",msg->user_list[i]);
+                    printf("[DEBUG] ignorato peer con porta non valida: %d\n", current_auction.user_list[i]);
                     continue;
                 }
-                send_to_peer(&bid_msg, msg->user_list[i]);
-            }            
+                send_to_peer(&bid_msg, current_auction.user_list[i]);
+            }           
             break;
         }
         

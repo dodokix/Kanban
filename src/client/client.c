@@ -73,13 +73,14 @@ int main(int argc, char *argv[]){
             handle_stdin();
         }
         
-        // messaggio dal server
+        // messaggi dal server (loop: un recv può portare più messaggi)
         if(FD_ISSET(server_fd, &read_fds)) {
             Message msg;
-            int ret = receive_message(&msg, server_fd);
-            if(ret > 0) {
+            int ret;
+            while((ret = receive_server_message(&msg)) > 0) {
                 handle_server_message(&msg);
-            } else if(ret == 0) {
+            }
+            if(ret < 0) {
                 printf("[INFO] Lavagna disconnessa\n");
                 break;
             }
@@ -106,6 +107,17 @@ int main(int argc, char *argv[]){
                 int ret = receive_message(&msg, peer_socket);
                 if(ret > 0) {
                     handle_peer_message(&msg, peer_socket);
+                    /* Duplicate connection detected: close the redundant incoming socket */
+                    if(pending_close_socket == peer_socket) {
+                        FD_CLR(peer_socket, &master_fds);
+                        close(peer_socket);
+                        for(int k = i; k < num_peers - 1; k++) peers[k] = peers[k+1];
+                        num_peers--;
+                        peers[num_peers].socket = -1;
+                        peers[num_peers].port = 0;
+                        pending_close_socket = -1;
+                        i--;
+                    }
                 } else if(ret == 0) {
                     printf("[INFO] Peer %d disconnesso\n", peers[i].port);
                     FD_CLR(peer_socket, &master_fds);

@@ -52,7 +52,10 @@ int configure_port(){
         perror("[NET] socket");
         return -1;
     }
-  
+
+    int opt = 1;
+    setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
+
     memset(&address, 0, addrlen);
     address.sin_family = AF_INET;
     address.sin_port = htons(SERVER_PORT);

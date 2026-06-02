@@ -12,8 +12,9 @@ typedef struct {
 extern int server_fd;
 extern int listen_fd;
 extern int my_port;
-extern PeerConnection peers[MAX_USERS];
+extern PeerConnection peers[MAX_PEER_CONNECTIONS];
 extern int num_peers;
+extern int pending_close_socket;
 
 int client_setup(int myport);
 void net_cleanup();
@@ -26,6 +27,7 @@ int connect_to_peer(int peer_port);
 int accept_peer_connection();
 void close_peer_connection(int peer_port);
 
+int receive_server_message(Message* msg);
 int receive_message(Message* msg, int socket_fd);
 int get_peer_socket(int peer_port);
 void update_peer_port(int socket_fd, int port);

@@ -14,8 +14,12 @@ struct sockaddr_in usr_addr;
 int server_fd = -1;
 int listen_fd = -1;
 int my_port = 0;
-PeerConnection peers[MAX_USERS];
+PeerConnection peers[MAX_PEER_CONNECTIONS];
 int num_peers = 0;
+int pending_close_socket = -1;
+
+static char srv_buf[CMD_BUFF_SIZE * 4];
+static int  srv_buf_len = 0;
 
 static int setup_server_socket(){
     struct sockaddr_in server_addr;
@@ -78,7 +82,7 @@ int client_setup(int port){
     my_port = port;
     num_peers = 0;
 
-    for(int i = 0; i < MAX_CLIENTS; ++i){
+    for(int i = 0; i < MAX_PEER_CONNECTIONS; ++i){
         peers[i].port = 0;
         peers[i].socket = -1;
     }
@@ -148,7 +152,7 @@ int connect_to_peer(int peer_port) {
         return get_peer_socket(peer_port);
     }
 
-    if(num_peers >= MAX_USERS){
+    if(num_peers >= MAX_PEER_CONNECTIONS){
         printf("[WARN] Array peer pieno, impossibile connettersi a %d\n", peer_port);
         return -1;
     }
@@ -197,7 +201,7 @@ int accept_peer_connection() {
         return -1;
     }
 
-    if(num_peers >= MAX_USERS){
+    if(num_peers >= MAX_PEER_CONNECTIONS){
         printf("[WARN] Troppi peer, connessione rifiutata\n");
         close(new_socket);
         return -1;
@@ -226,11 +230,40 @@ void close_peer_connection(int peer_port) {
             peers[num_peers].port = 0;
             peers[num_peers].socket = -1;
             printf("[NET] Connessione con peer %d chiusa\n", peer_port);
+            
             return;
         }
     }
 }
 
+
+int receive_server_message(Message* msg) {
+    char *nl = memchr(srv_buf, '\n', srv_buf_len);
+    if (!nl) {
+        int space = (int)sizeof(srv_buf) - 1 - srv_buf_len;
+        if (space > 0) {
+            int n = recv(server_fd, srv_buf + srv_buf_len, space, MSG_DONTWAIT);
+            if (n > 0) {
+                srv_buf_len += n;
+                srv_buf[srv_buf_len] = '\0';
+            } else if (n == 0) {
+                return -1; // connessione chiusa
+            }
+            // n < 0 con EAGAIN: nessun dato nuovo, si usa solo il buffer
+        }
+        nl = memchr(srv_buf, '\n', srv_buf_len);
+        if (!nl) return 0; // nessun messaggio completo
+    }
+
+    *nl = '\0';
+    int rc = deserialize_message(srv_buf, msg);
+    int msg_len = (int)(nl - srv_buf) + 1;
+    srv_buf_len -= msg_len;
+    memmove(srv_buf, nl + 1, srv_buf_len);
+    srv_buf[srv_buf_len] = '\0';
+
+    return rc == 0 ? 1 : -1;
+}
 
 int receive_message(Message* msg, int socket_fd) {
     char buffer[CMD_BUFF_SIZE];
@@ -283,6 +316,14 @@ int get_peer_socket(int peer_port) {
 }
 
 void update_peer_port(int socket_fd, int port) {
+    /* If we already have an outgoing connection to this port, mark the
+       incoming (port=0) socket as redundant so the main loop can close it. */
+    for(int i = 0; i < num_peers; i++) {
+        if(peers[i].port == port && peers[i].socket != socket_fd) {
+            pending_close_socket = socket_fd;
+            return;
+        }
+    }
     for(int i = 0; i < num_peers; i++) {
         if(peers[i].socket == socket_fd && peers[i].port == 0) {
             peers[i].port = port;

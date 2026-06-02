@@ -390,15 +390,17 @@ void handle_ready(Message* msg){
     printf("[AUCTION %d] Client %d ready. %d/%d\n", lav.auction.id, msg->sender_port, lav.auction.acks_received, lav.auction.partecipating_users);
     
     if(lav.auction.acks_received == lav.auction.partecipating_users){
+        lav.auction.active = true;
         printf("[AUCTION] all participants ready! go!\n");
 
         Message start_msg;
         memset(&start_msg, 0, sizeof(Message));
         start_msg.type = CMD_START_AUCTION;
-        start_msg.card_id = msg->card_id;
+        start_msg.card_id = lav.card_in_asta;
         
-        for(int i = 0; i<lav.num_utenti; ++i){
-            send_to_client(&start_msg, lav.lista_utenti[i].socket_fd);
+        for(int i = 0; i < MAX_CLIENTS; ++i){
+            if(lav.lista_utenti[i].attivo && !lav.lista_utenti[i].occupato)
+                send_to_client(&start_msg, lav.lista_utenti[i].socket_fd);
         }
     }
 }
@@ -488,13 +490,19 @@ void broadcast_available_cards(){
 
 
 void check_and_send_available_cards() {
-    if(lav.num_utenti < 2) return;
     if(lav.card_in_asta != 0) return;
 
-    for(int i=0; i<lav.num_cards; i++) {
+    int n_free = 0;
+    for(int i = 0; i < MAX_CLIENTS; i++) {
+        if(lav.lista_utenti[i].attivo && !lav.lista_utenti[i].occupato)
+            n_free++;
+    }
+    if(n_free < 2) return;
+
+    for(int i = 0; i < lav.num_cards; i++) {
         if(lav.cards[i] && lav.cards[i]->column == COL_TODO) {
             lav.card_in_asta = lav.cards[i]->id;
-            lav.auction.partecipating_users = lav.num_utenti;
+            lav.auction.partecipating_users = n_free;
             broadcast_available_cards();
             break;
         }
