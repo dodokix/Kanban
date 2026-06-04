@@ -9,6 +9,8 @@ const char* command_to_string(CommandType cmd) {
         case CMD_QUIT: return "QUIT";
         case CMD_CREATE_CARD: return "CREATE_CARD";
         case CMD_AVAILABLE_CARD: return "AVAILABLE_CARD";
+        case CMD_READY: return "CMD_READY";
+        case CMD_START_AUCTION: return "START_AUCTION";
         case CMD_CHOOSE_USER: return "CHOOSE_USER";
         case CMD_ACK_CARD: return "ACK_CARD";
         case CMD_CARD_DONE: return "CARD_DONE";
@@ -26,6 +28,8 @@ CommandType string_to_command(const char* str) {
     if(strcmp(str, "QUIT") == 0) return CMD_QUIT;
     if(strcmp(str, "CREATE_CARD") == 0) return CMD_CREATE_CARD;
     if(strcmp(str, "AVAILABLE_CARD") == 0) return CMD_AVAILABLE_CARD;
+    if(strcmp(str, "CMD_READY") == 0) return CMD_READY;
+    if(strcmp(str, "START_AUCTION") == 0) return CMD_START_AUCTION;
     if(strcmp(str, "CHOOSE_USER") == 0) return CMD_CHOOSE_USER;
     if(strcmp(str, "ACK_CARD") == 0) return CMD_ACK_CARD;
     if(strcmp(str, "CARD_DONE") == 0) return CMD_CARD_DONE;
@@ -90,7 +94,6 @@ int serialize_message(const Message* msg, char* buffer, int buffer_size) {
 }
 
 /* Deserializzazione messaggio da formato testuale */
-/* Deserializzazione messaggio da formato testuale */
 int deserialize_message(const char* buffer, Message* msg) {
     char cmd_str[32] = "";
     char user_list_str[512] = "";
@@ -145,7 +148,7 @@ int deserialize_message(const char* buffer, Message* msg) {
     msg->type = string_to_command(cmd_str);
     msg->column = string_to_column(col_str);
     
-    // Parse della lista utenti (rimasto invariato)
+    // Parse della lista utenti
     if(msg->num_users > 0 && strlen(user_list_str) > 0) {
         char* u_token = strtok(user_list_str, ",");
         for(int i = 0; i < MAX_USERS && u_token != NULL; ++i){

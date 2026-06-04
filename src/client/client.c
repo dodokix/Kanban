@@ -73,13 +73,14 @@ int main(int argc, char *argv[]){
             handle_stdin();
         }
         
-        // messaggio dal server
+        // messaggi dal server (loop: un recv può portare più messaggi)
         if(FD_ISSET(server_fd, &read_fds)) {
             Message msg;
-            int ret = receive_message(&msg, server_fd);
-            if(ret > 0) {
+            int ret;
+            while((ret = receive_server_message(&msg)) > 0) {
                 handle_server_message(&msg);
-            } else if(ret == 0) {
+            }
+            if(ret < 0) {
                 printf("[INFO] Lavagna disconnessa\n");
                 break;
             }

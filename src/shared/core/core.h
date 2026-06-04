@@ -17,6 +17,8 @@ typedef enum {
     CMD_QUIT,               // Disconnessione utente
     CMD_CREATE_CARD,        // Creazione nuova card
     CMD_AVAILABLE_CARD,     // Lavagna notifica card disponibile 
+    CMD_READY,
+    CMD_START_AUCTION,
     CMD_CHOOSE_USER,        // Utenti si scambiano costi 
     CMD_ACK_CARD,           // Utente conferma presa in carico
     CMD_CARD_DONE,          // Utente notifica completamento

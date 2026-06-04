@@ -43,6 +43,11 @@ fd_set masterfds;
 fd_set readfds;
 int maxfd;
 
+/*
+==========================================================================================
+    SETUP
+==========================================================================================
+*/
 
 int configure_port(){
     struct sockaddr_in address;
@@ -52,7 +57,10 @@ int configure_port(){
         perror("[NET] socket");
         return -1;
     }
-  
+
+    int opt = 1;
+    setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
+
     memset(&address, 0, addrlen);
     address.sin_family = AF_INET;
     address.sin_port = htons(SERVER_PORT);
@@ -91,6 +99,11 @@ int server_setup(){
     return 0;
 }
 
+/*
+==========================================================================================
+    GESTIONE CLIENTS
+==========================================================================================
+*/
 void add_client(int socket, uint16_t port){
      for(int i = 0; i < MAX_CLIENTS; ++i){
         if(!clients_arr[i].active){
@@ -138,13 +151,19 @@ void new_connection(){
     }
 
     if(connected_clients >= MAX_CLIENTS){
-        printf("[WARN] Raggiunto limite di %d client, una connessione e' stat rifiutata", MAX_CLIENTS);
+        printf("[WARN] Raggiunto limite di %d client, una connessione e' stata rifiutata\n", MAX_CLIENTS);
         close(client_socket);
         return;
     }
     
     add_client(client_socket, ntohs(client_addr.sin_port));
 }
+
+/*
+==========================================================================================
+    RICEZIONE MESSAGGI
+==========================================================================================
+*/
 
 int read_stdin(){
 
@@ -168,7 +187,7 @@ client* find_client_by_socket(int fd){
             return &clients_arr[i];
         }
     }
-    printf("[ERROR]: client non torvato nella funzione find_client_by_socket\n");
+    printf("[ERROR]: client non trovato nella funzione find_client_by_socket\n");
     return NULL;
 }
 
@@ -209,8 +228,110 @@ int read_client(int fd){
     sender->n_byte += n;
     return 0;
 }
+/*
+==========================================================================================
+    BUFFERIZZAZIONE MESSAGGI ED ESTRAZIONE
+==========================================================================================
+*/
+void remove_cmd_from_buffer(client* c, int cmd_length){
+    int remaining_bytes = c->n_byte - (cmd_length + 1);
+    memmove(c->buff, c->buff + cmd_length + 1, remaining_bytes);
+    c->n_byte = remaining_bytes;
+    memset(c->buff + c->n_byte, 0, CMD_BUFF_SIZE - c->n_byte);
+}
 
+int extract_line_from_buffer(client* c, char* dest_buffer, int max_length){
+    if(c->n_byte == 0) return 0;
 
+    int cmd_len = -1;
+    for(int i = 0; i < c->n_byte; ++i){
+        if(c->buff[i] == '\n'){
+            cmd_len = i;
+            break;
+        }
+    }
+
+    if(cmd_len < 0) return 0;
+
+    if(cmd_len == 0 || cmd_len > max_length) {
+        remove_cmd_from_buffer(c, cmd_len);
+        return -1;
+    }
+        
+    memcpy(dest_buffer, c->buff, cmd_len);
+    dest_buffer[cmd_len] = '\0';
+    remove_cmd_from_buffer(c, cmd_len);
+    return cmd_len;
+}
+
+int get_message_from_net(Message* msg){
+
+    char tmp[CMD_BUFF_SIZE];
+    int cmd_len;
+
+    if((cmd_len = extract_line_from_buffer(&cmd_interface, tmp, CMD_BUFF_SIZE)) > 0){
+        msg->type = CMD_CONSOLE;
+        strncpy(msg->text, tmp, cmd_len);
+        msg->text[cmd_len] = '\0';
+        return STDIN_FILENO;
+    }
+
+    for(int i = 0; i < MAX_CLIENTS; ++i){
+        if(clients_arr[i].active){
+            if(extract_line_from_buffer(&clients_arr[i], tmp, CMD_BUFF_SIZE) > 0){
+                if(deserialize_message(tmp, msg) == 0){
+                    return clients_arr[i].socket;
+                }
+            }
+        }
+    }
+    return -1;
+}
+/*
+==========================================================================================
+    CHIUSURA RETE
+==========================================================================================
+*/
+void close_net(){
+    if(sockfd > 0){
+        shutdown(sockfd, SHUT_RDWR);
+        close(sockfd);
+        sockfd = 0;
+    }
+
+    for(int i = 0; i < MAX_CLIENTS; ++i){
+        if(clients_arr[i].active){
+            close(clients_arr[i].socket);
+        }
+    }
+    printf("[NET] chiusura socket completata!\n");
+}
+/*
+==========================================================================================
+    INVIO MESSAGGI
+==========================================================================================
+*/
+int send_to_client(Message* msg, int client_fd){
+    char buffer[CMD_BUFF_SIZE];
+    int len = serialize_message(msg, buffer, CMD_BUFF_SIZE);
+
+    if(len < 0){
+        printf("[ERROR] Errore nella serializzazione\n");
+        return 0;
+    }
+
+    if(send(client_fd, buffer, len, 0) < 0){
+        perror("[NET]: send\n");
+        return 0;
+    }
+
+    return 1;
+}
+/*
+==========================================================================================
+    CONTROLLO DELLA RETE
+==========================================================================================
+*/
 int check_net(){
 
     readfds = masterfds;
@@ -241,97 +362,4 @@ int check_net(){
     }
 
     return 0;
-}
-
-void remove_cmd_from_buffer(client* c, int cmd_length){
-    int remaining_bytes = c->n_byte - (cmd_length + 1);
-        if(remaining_bytes >= 0){
-        memmove(c->buff, c->buff + cmd_length + 1, remaining_bytes);
-    }
-    c->n_byte = (remaining_bytes > 0) ? remaining_bytes : 0;
-    memset(c->buff + c->n_byte, 0, CMD_BUFF_SIZE - c->n_byte);
-}
-
-int extract_line_from_buffer(client* c, char* dest_buffer, int max_length){
-    if(c->n_byte == 0) return 0;
-
-    int cmd_len = -1;
-    for(int i = 0; i < c->n_byte; ++i){
-        if(c->buff[i] == '\n'){
-            cmd_len = i;
-            break;
-        }
-    }
-
-    if(cmd_len < 0) return 0;
-
-    if(cmd_len == 0 || cmd_len > max_length) {
-        remove_cmd_from_buffer(c, cmd_len);
-        return -1;
-    }
-        
-    memcpy(dest_buffer, c->buff, cmd_len);
-    dest_buffer[cmd_len] = '\0';
-    remove_cmd_from_buffer(c, cmd_len);
-    return cmd_len;
-
-
-    return 0;
-}
-
-
-
-int get_message_from_net(Message* msg){
-
-    char tmp[CMD_BUFF_SIZE];
-    int cmd_len;
-
-    if((cmd_len = extract_line_from_buffer(&cmd_interface, tmp, CMD_BUFF_SIZE)) > 0){
-        msg->type = CMD_CONSOLE;
-        strncpy(msg->text, tmp, cmd_len);
-        return STDIN_FILENO;
-    }
-
-    for(int i = 0; i < MAX_CLIENTS; ++i){
-        if(clients_arr[i].active){
-            if(extract_line_from_buffer(&clients_arr[i], tmp, CMD_BUFF_SIZE) > 0){
-                if(deserialize_message(tmp, msg) == 0){
-                    return clients_arr[i].socket;
-                }
-            }
-        }
-    }
-    return -1;
-}
-
-void close_net(){
-    if(sockfd > 0){
-        shutdown(sockfd, SHUT_RDWR);
-        close(sockfd);
-        sockfd = 0;
-    }
-
-    for(int i = 0; i < MAX_CLIENTS; ++i){
-        if(clients_arr[i].active){
-            close(clients_arr[i].socket);
-        }
-    }
-    printf("[NET] chiusura socket completata!\n");
-}
-
-int send_to_client(Message* msg, int client_fd){
-    char buffer[CMD_BUFF_SIZE];
-    int len = serialize_message(msg, buffer, CMD_BUFF_SIZE);
-
-    if(len < 0){
-        printf("[ERROR] Errore nella serializzazione\n");
-        return 0;
-    }
-
-    if(send(client_fd, buffer, len, 0) < 0){
-        perror("[NET]: send\n");
-        return 0;
-    }
-
-    return 1;
 }

@@ -6,6 +6,7 @@
 #define BACKLOG 10
 #define MAX_CLIENTS 4
 #define MAX_USERS 4
+#define MAX_PEER_CONNECTIONS 8
 #define CMD_BUFF_SIZE 1024
 
 #endif
